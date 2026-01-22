@@ -15,98 +15,98 @@ st.set_page_config(
 def detect_intent(text):
     text = text.lower()
 
-    if any(word in text for word in ["suicide", "kill myself", "hurt myself", "end my life"]):
+    if any(w in text for w in ["suicide", "kill myself", "hurt myself", "end my life"]):
         return "emergency"
-
-    if any(word in text for word in ["stress", "anxious", "anxiety", "pressure", "overwhelmed"]):
+    if any(w in text for w in ["stress", "pressure", "overwhelmed", "anxious", "anxiety"]):
         return "stress"
-
-    if any(word in text for word in ["sad", "down", "lonely", "cry", "depressed"]):
+    if any(w in text for w in ["sad", "lonely", "cry", "down", "empty"]):
         return "sad"
-
-    if any(word in text for word in ["tired", "exhausted", "burnout", "fatigue"]):
+    if any(w in text for w in ["tired", "burnout", "exhausted", "fatigue"]):
         return "fatigue"
-
-    if any(word in text for word in ["sleep", "insomnia", "can't sleep"]):
+    if any(w in text for w in ["sleep", "insomnia", "can't sleep"]):
         return "sleep"
-
-    if any(word in text for word in ["help", "what can you do", "features"]):
+    if any(w in text for w in ["help", "features", "what can you do"]):
         return "features"
-
     return "general"
 
 # --------------------------------------------------------
-# FOLLOW-UP QUESTIONS
+# CORE SUPPORT RESPONSES
 # --------------------------------------------------------
-def follow_up_question(intent):
-    follow_ups = {
-        "stress": "Do you want to share what’s been causing the stress lately?",
-        "sad": "Would you like to talk more about what’s been weighing on you?",
-        "fatigue": "Has this tiredness been going on for a while?",
-        "sleep": "What usually makes it hardest for you to fall asleep?",
-        "general": "Would you like to tell me more about how you’re feeling right now?"
-    }
-    return follow_ups.get(intent, follow_ups["general"])
-
-# --------------------------------------------------------
-# SUPPORTIVE RESPONSES
-# --------------------------------------------------------
-def handle_intent(intent):
+def base_response(intent):
     responses = {
+        "stress": "That sounds really overwhelming. 💛 It’s okay to feel this way.",
+        "sad": "I’m really glad you shared that with me. 💙 Your feelings matter.",
+        "fatigue": "Being that tired can be draining in every way. 😴",
+        "sleep": "Sleep struggles can affect everything else. I hear you.",
         "features": (
-            "I’m here to support you emotionally and mentally. 💙\n\n"
-            "I can help you by:\n"
-            "• Listening to your thoughts and feelings\n"
-            "• Helping you process stress or anxiety\n"
-            "• Offering gentle self-care suggestions\n"
-            "• Giving you a safe space to talk freely\n\n"
-            "You can share as much as you want."
+            "I’m here to listen, support, and gently guide you.\n\n"
+            "You can talk about stress, emotions, exhaustion, or anything weighing on you."
         ),
-
-        "stress": (
-            "That sounds really overwhelming. 💛\n\n"
-            "It’s okay to feel stressed when things pile up."
-        ),
-
-        "sad": (
-            "I’m really glad you told me this. 💙\n\n"
-            "What you’re feeling matters."
-        ),
-
-        "fatigue": (
-            "Being constantly tired can drain you emotionally and physically. 😴\n\n"
-            "You deserve rest."
-        ),
-
-        "sleep": (
-            "Sleep problems can be frustrating.\n\n"
-            "Your mind might just need some calm right now."
-        ),
-
         "emergency": (
             "I’m really concerned about your safety. ❤️\n\n"
             "You deserve immediate support. Please reach out to someone you trust "
-            "or contact local emergency services right now."
+            "or local emergency services right now."
         ),
+        "general": "I’m here with you. You can share at your own pace."
+    }
+    return responses.get(intent, responses["general"])
 
-        "general": (
-            "I’m here with you. 😊\n\n"
-            "You can talk to me anytime."
-        )
+# --------------------------------------------------------
+# PROGRESSIVE ADVICE ENGINE
+# --------------------------------------------------------
+def progressive_advice(intent, depth):
+    advice = {
+        "stress": [
+            "Sometimes taking a short pause and slow breathing can help calm your body.",
+            "You might try breaking tasks into smaller, manageable steps.",
+            "It can help to ask: *What is one thing I can control right now?*"
+        ],
+        "sad": [
+            "It’s okay to sit with the feeling without judging it.",
+            "Doing something small and comforting—like music or a warm drink—can help.",
+            "You’ve been carrying a lot. Be gentle with yourself."
+        ],
+        "fatigue": [
+            "Your body might be asking for rest, not productivity.",
+            "Even a short mental break can make a difference.",
+            "You don’t have to do everything today."
+        ],
+        "sleep": [
+            "Lowering screen time before bed can help your mind slow down.",
+            "A calm routine before sleep may signal your body to rest.",
+            "It’s okay if sleep doesn’t come immediately—resting still counts."
+        ],
+        "general": [
+            "Taking a moment to breathe slowly can ground you.",
+            "Writing down thoughts sometimes helps clear mental space.",
+            "You’re allowed to take things one step at a time."
+        ]
     }
 
-    return responses.get(intent, responses["general"])
+    tips = advice.get(intent, advice["general"])
+    return tips[min(depth, len(tips) - 1)]
+
+# --------------------------------------------------------
+# FOLLOW-UP PROMPTS
+# --------------------------------------------------------
+def follow_up(intent):
+    followups = {
+        "stress": "Does this situation feel constant, or does it come and go?",
+        "sad": "Would you like to tell me what made today especially heavy?",
+        "fatigue": "Have you been getting enough rest lately?",
+        "sleep": "What usually runs through your mind at night?",
+        "general": "Would you like to talk more about what you’re feeling?"
+    }
+    return followups.get(intent, followups["general"])
 
 # --------------------------------------------------------
 # UI HEADER
 # --------------------------------------------------------
 st.title("💬 Campus Self-Care & Wellness Chatbot")
-st.caption(
-    "A supportive space where you can talk freely until you feel better."
-)
+st.caption("A calm space to talk, reflect, and feel supported.")
 
 # --------------------------------------------------------
-# CHAT STATE
+# SESSION STATE
 # --------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -114,8 +114,11 @@ if "messages" not in st.session_state:
 if "first_reply_done" not in st.session_state:
     st.session_state.first_reply_done = False
 
+if "depth" not in st.session_state:
+    st.session_state.depth = 0
+
 # --------------------------------------------------------
-# DISPLAY CHAT HISTORY
+# DISPLAY CHAT
 # --------------------------------------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -124,25 +127,31 @@ for msg in st.session_state.messages:
 # --------------------------------------------------------
 # CHAT INPUT
 # --------------------------------------------------------
-if prompt := st.chat_input("Type your thoughts here…"):
+if prompt := st.chat_input("You can talk freely here…"):
     st.session_state.messages.append({"role": "user", "content": prompt})
-
-    with st.chat_message("user"):
-        st.markdown(prompt)
 
     with st.chat_message("assistant"):
         with st.spinner("Listening..."):
 
-            # FIRST MESSAGE ONLY
+            # FIRST GREETING ONLY
             if not st.session_state.first_reply_done:
                 response = "Hello! 👋😊\n\nWhat can I do for you today?"
                 st.session_state.first_reply_done = True
+                st.session_state.depth = 0
             else:
                 intent = detect_intent(prompt)
+                base = base_response(intent)
+                advice = progressive_advice(intent, st.session_state.depth)
+                follow = follow_up(intent)
+
                 response = (
-                    f"{handle_intent(intent)}\n\n"
-                    f"{follow_up_question(intent)}"
+                    f"{base}\n\n"
+                    f"💡 *You might consider this:* {advice}\n\n"
+                    f"{follow}\n\n"
+                    "Let me know if this is helping or if you’d like another approach."
                 )
+
+                st.session_state.depth += 1
 
             st.markdown(response)
             st.session_state.messages.append(
@@ -150,9 +159,8 @@ if prompt := st.chat_input("Type your thoughts here…"):
             )
 
 # --------------------------------------------------------
-# RESET BUTTON (FIXED & FINAL)
+# RESET BUTTON
 # --------------------------------------------------------
 if st.button("🔄 Restart Conversation"):
-    st.session_state.messages.clear()
-    st.session_state.first_reply_done = False
+    st.session_state.clear()
     st.rerun()
