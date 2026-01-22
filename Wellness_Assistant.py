@@ -1,4 +1,5 @@
 import streamlit as st
+import random
 
 # --------------------------------------------------------
 # PAGE CONFIG
@@ -10,59 +11,63 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------
-# KEYWORDS & TOPICS
+# KEYWORDS & ANALYSIS DATA (EXPANDED)
 # --------------------------------------------------------
 EMOTIONS = {
     "stress": ["stress", "pressure", "overwhelmed", "deadline", "too much"],
-    "sad": ["sad", "down", "lonely", "cry", "empty", "hopeless"],
-    "fatigue": ["tired", "exhausted", "burnout", "fatigue"],
+    "sadness": ["sad", "down", "lonely", "cry", "empty", "hopeless"],
+    "fatigue": ["tired", "exhausted", "burnout", "fatigue", "drained"],
     "anxiety": ["anxious", "anxiety", "worried", "panic", "nervous"],
-    "sleep": ["sleep", "insomnia", "rest", "can't sleep"]
+    "anger": ["angry", "mad", "frustrated", "irritated"],
+    "fear": ["scared", "afraid", "fearful"],
+    "confusion": ["confused", "lost", "uncertain"],
+    "motivation_loss": ["unmotivated", "stuck", "no energy"],
+    "sleep": ["sleep", "insomnia", "can't sleep", "restless"]
 }
 
 TOPICS = {
-    "school": ["school", "class", "exam", "grades", "project"],
+    "academics": ["school", "exam", "grades", "project", "study"],
     "family": ["family", "parents", "home"],
-    "friends": ["friends", "relationship", "people"],
+    "friends": ["friends", "relationship", "social"],
     "future": ["future", "career", "life"],
-    "self": ["myself", "me", "identity", "confidence"]
+    "finance": ["money", "tuition", "budget", "broke"],
+    "work": ["job", "work", "shift"],
+    "self_esteem": ["confidence", "insecure", "hate myself"]
 }
 
-INTENSIFIERS = ["very", "too", "always", "never", "can't", "hard"]
+INTENSIFIERS = [
+    "very", "too", "always", "never", "can't", "anymore", "really", "extremely"
+]
 
 # --------------------------------------------------------
-# ANALYSIS FUNCTIONS
+# MESSAGE ANALYSIS
 # --------------------------------------------------------
 def analyze_message(text):
-    text_lower = text.lower()
-    emotions = []
-    topics = []
-    intensity = False
+    text = text.lower()
+    emotions, topics = [], []
+    intensity = any(i in text for i in INTENSIFIERS)
 
     for e, words in EMOTIONS.items():
-        if any(w in text_lower for w in words):
+        if any(w in text for w in words):
             emotions.append(e)
 
     for t, words in TOPICS.items():
-        if any(w in text_lower for w in words):
+        if any(w in text for w in words):
             topics.append(t)
-
-    if any(i in text_lower for i in INTENSIFIERS):
-        intensity = True
 
     return emotions or ["general"], topics, intensity
 
 # --------------------------------------------------------
-# REFLECTION ENGINE
+# REFLECTION
 # --------------------------------------------------------
-def reflect(emotions, topics, intensity):
+def reflect_message(emotions, topics, intensity):
     lines = ["From what you shared, it sounds like:"]
 
     for e in emotions:
-        lines.append(f"• you’re feeling {e}")
+        lines.append(f"• you’re experiencing **{e.replace('_', ' ')}**")
 
     for t in topics:
-        lines.append(f"• this is connected to your {t}")
+        lines.append(f"• this connects to **{t.replace('_', ' ')}**")
 
     if intensity:
         lines.append("• these feelings feel especially strong right now")
@@ -70,39 +75,34 @@ def reflect(emotions, topics, intensity):
     return "\n".join(lines)
 
 # --------------------------------------------------------
-# ADVICE ENGINE (VERY DEEP)
+# ADVICE ENGINE
 # --------------------------------------------------------
-def advice(emotions, depth):
+def give_advice(emotions, depth):
     advice_bank = {
         "stress": [
             "Try focusing on one small task at a time.",
-            "It may help to pause and remind yourself that you don’t have to solve everything today.",
-            "Your effort matters, even when progress feels slow."
+            "Pausing briefly can reduce mental overload.",
+            "You don’t need to solve everything today."
         ],
-        "sad": [
-            "Allow yourself to feel without judging it.",
-            "Comforting routines can help during heavy moments.",
-            "You’re not weak for feeling this way."
+        "sadness": [
+            "It’s okay to feel this way.",
+            "Comforting routines can help during low moments.",
+            "You deserve patience and kindness."
         ],
         "fatigue": [
-            "Rest is not laziness — it’s recovery.",
-            "Short breaks can help your body reset.",
-            "You deserve gentleness, not pressure."
+            "Your body may be asking for rest.",
+            "Short breaks still count as recovery.",
+            "Rest is productive."
         ],
         "anxiety": [
             "Slow breathing can calm your nervous system.",
-            "Grounding yourself in the present may help reduce worry.",
-            "You don’t need all the answers right now."
-        ],
-        "sleep": [
-            "Creating a calm bedtime routine can help.",
-            "Resting quietly still counts as rest.",
-            "Your body will find its rhythm again."
+            "Grounding yourself in the present may help.",
+            "You are safe right now."
         ],
         "general": [
-            "It’s okay to take things one step at a time.",
-            "You don’t have to be okay all the time.",
-            "You’re doing the best you can right now."
+            "You’re doing the best you can.",
+            "One step at a time is enough.",
+            "You deserve support."
         ]
     }
 
@@ -114,64 +114,108 @@ def advice(emotions, depth):
     return "\n".join(responses)
 
 # --------------------------------------------------------
-# FOLLOW-UP ENGINE
+# ADVANCED FOLLOW-UP PROMPTS
 # --------------------------------------------------------
-def follow_up(depth):
-    if depth < 2:
-        return "Would you like to tell me more about this?"
-    if depth < 4:
-        return "Is this helping you so far, or would you like a different kind of support?"
-    return "Do you want me to keep listening, or would advice be helpful right now?"
+FOLLOW_UP_BANK = {
+    "reflection": [
+        "Does this describe how you’re feeling?",
+        "Did I understand you correctly?",
+        "Does any part of this stand out to you?"
+    ],
+    "clarification": [
+        "What part feels hardest right now?",
+        "When did this start to feel this way?",
+        "Is there something specific triggering this?"
+    ],
+    "coping": [
+        "What have you tried so far to cope?",
+        "What usually helps, even a little?",
+        "Would you like to explore a small next step?"
+    ],
+    "satisfaction": [
+        "Is this helping you feel a bit lighter?",
+        "Do you feel heard right now?",
+        "Would you like me to keep listening or give advice?"
+    ]
+}
+
+def choose_follow_up(turn_count):
+    if turn_count < 2:
+        category = "reflection"
+    elif turn_count < 4:
+        category = "clarification"
+    elif turn_count < 6:
+        category = "coping"
+    else:
+        category = "satisfaction"
+
+    return random.choice(FOLLOW_UP_BANK[category])
 
 # --------------------------------------------------------
-# UI
+# UI HEADER
 # --------------------------------------------------------
 st.title("💙 Campus Emotional Support Chatbot")
-st.caption("A safe space to talk, reflect, and feel supported.")
+st.caption("A space where you can talk freely and be understood.")
 
 # --------------------------------------------------------
-# SESSION STATE
+# SESSION STATE (EXPANDED)
 # --------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "first" not in st.session_state:
-    st.session_state.first = True
+if "first_reply" not in st.session_state:
+    st.session_state.first_reply = True
 
 if "depth" not in st.session_state:
     st.session_state.depth = 0
 
+if "turn_count" not in st.session_state:
+    st.session_state.turn_count = 0
+
+if "emotion_history" not in st.session_state:
+    st.session_state.emotion_history = []
+
+if "topic_history" not in st.session_state:
+    st.session_state.topic_history = []
+
 # --------------------------------------------------------
-# DISPLAY CHAT
+# DISPLAY CHAT HISTORY
 # --------------------------------------------------------
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
 # --------------------------------------------------------
 # CHAT INPUT
 # --------------------------------------------------------
 if prompt := st.chat_input("You can share anything here…"):
+
+    st.session_state.turn_count += 1
     st.session_state.messages.append({"role": "user", "content": prompt})
+
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
     with st.chat_message("assistant"):
         with st.spinner("Understanding..."):
 
-            if st.session_state.first:
+            if st.session_state.first_reply:
                 response = "Hello! 👋😊\n\nWhat can I do for you today?"
-                st.session_state.first = False
-                st.session_state.depth = 0
+                st.session_state.first_reply = False
             else:
                 emotions, topics, intensity = analyze_message(prompt)
-                reflection = reflect(emotions, topics, intensity)
-                guidance = advice(emotions, st.session_state.depth)
-                follow = follow_up(st.session_state.depth)
+                st.session_state.emotion_history.extend(emotions)
+                st.session_state.topic_history.extend(topics)
+
+                reflection = reflect_message(emotions, topics, intensity)
+                advice = give_advice(emotions, st.session_state.depth)
+                follow_up = choose_follow_up(st.session_state.turn_count)
 
                 response = (
                     f"{reflection}\n\n"
-                    f"{guidance}\n\n"
-                    f"{follow}\n\n"
-                    "You can correct me if I misunderstood — I’m here to listen."
+                    f"{advice}\n\n"
+                    f"{follow_up}\n\n"
+                    "You can take your time — I’m here with you."
                 )
 
                 st.session_state.depth += 1
