@@ -177,6 +177,32 @@ if "first_chat" not in st.session_state:
 # --------------------------------------------------------
 st.title("💙 Campus Wellness Support Chatbot")
 
+# USER GUIDE / SYSTEM STATEMENT
+with st.expander("ℹ️ How this chatbot can help you"):
+    st.markdown("""
+    **Welcome!**  
+    This chatbot is designed to provide emotional support and wellness guidance
+    for students in a safe and respectful way.
+
+    **You can use this chatbot to:**
+    - Share your feelings, stress, or concerns
+    - Talk about school pressure, relationships, or personal struggles
+    - Receive supportive, non-judgmental responses
+    - Continue chatting until you feel satisfied or understood
+
+    **How it works:**
+    - The chatbot reads and analyzes your messages
+    - It responds with empathy and practical wellness guidance
+    - It adapts based on what you share
+
+    **Important reminder:**
+    - This chatbot does not provide medical diagnosis or emergency services
+    - If you are in immediate danger or crisis, please seek professional help
+
+    *You are always welcome here.*
+    """)
+
+# DISPLAY CHAT HISTORY
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
