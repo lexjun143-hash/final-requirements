@@ -13,36 +13,98 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------
-# GREETING & SMALL TALK LOGIC
+# INTENT DETECTION
 # --------------------------------------------------------
-def is_greeting(text):
-    greetings = [
-        "hi", "hello", "hey", "good morning", "good afternoon",
-        "good evening", "start", "help"
-    ]
-    text = text.lower().strip()
-    return any(greet in text for greet in greetings)
+def detect_intent(text):
+    text = text.lower()
 
-def greeting_response():
-    return (
-        "Hello! 👋😊\n\n"
-        "Welcome to the **Campus Self-Care & Wellness Chatbot**.\n\n"
-        "I’m here to help you with:\n"
-        "• Self-care tips\n"
-        "• Stress and mental wellness\n"
-        "• Understanding mild symptoms\n"
-        "• Healthy daily habits\n\n"
-        "How can I help you today?"
-    )
+    if any(word in text for word in ["stress", "anxious", "anxiety", "overwhelmed"]):
+        return "stress"
+
+    if any(word in text for word in ["tired", "fatigue", "exhausted", "sleepy"]):
+        return "fatigue"
+
+    if any(word in text for word in ["headache", "head hurts"]):
+        return "headache"
+
+    if any(word in text for word in ["can't sleep", "insomnia", "sleep"]):
+        return "sleep"
+
+    if any(word in text for word in ["what can you do", "help", "features"]):
+        return "features"
+
+    return "general"
 
 # --------------------------------------------------------
-# CHECK SNOWFLAKE CONFIGURATION
+# CHATBOT RESPONSES (NO AI, SAFE FALLBACK)
+# --------------------------------------------------------
+def handle_intent(intent):
+    responses = {
+        "features": (
+            "I can help you with:\n\n"
+            "• Managing stress and anxiety\n"
+            "• Improving sleep habits\n"
+            "• Dealing with tiredness or burnout\n"
+            "• Understanding mild discomfort like headaches\n"
+            "• Daily self-care and wellness tips\n\n"
+            "Just tell me what you’re experiencing."
+        ),
+
+        "stress": (
+            "Feeling stressed is very common, especially with school responsibilities.\n\n"
+            "Here are some things you can try:\n"
+            "• Take slow, deep breaths for a few minutes\n"
+            "• Step away from screens briefly\n"
+            "• Break tasks into smaller steps\n"
+            "• Talk to someone you trust\n\n"
+            "If stress feels constant or overwhelming, it may help to seek professional support."
+        ),
+
+        "fatigue": (
+            "Feeling tired can come from lack of rest, stress, or busy schedules.\n\n"
+            "You may try:\n"
+            "• Getting enough sleep\n"
+            "• Drinking water regularly\n"
+            "• Eating balanced meals\n"
+            "• Taking short breaks during the day\n\n"
+            "Let me know if this has been going on for a long time."
+        ),
+
+        "headache": (
+            "Mild headaches can happen due to stress, dehydration, or screen time.\n\n"
+            "Helpful self-care tips:\n"
+            "• Drink water\n"
+            "• Rest your eyes\n"
+            "• Stretch your neck and shoulders\n"
+            "• Take a short rest in a quiet place\n\n"
+            "If headaches become severe or frequent, professional advice may be needed."
+        ),
+
+        "sleep": (
+            "Sleep problems are common among students.\n\n"
+            "You can try:\n"
+            "• Going to bed at the same time daily\n"
+            "• Avoiding screens before sleep\n"
+            "• Creating a calm bedtime routine\n"
+            "• Limiting caffeine late in the day\n\n"
+            "If sleep issues continue, seeking help could be beneficial."
+        ),
+
+        "general": (
+            "Thanks for sharing. 😊\n\n"
+            "I can help with self-care, stress management, sleep habits, "
+            "and understanding mild concerns. "
+            "Tell me more about what you’re feeling."
+        )
+    }
+
+    return responses.get(intent, responses["general"])
+
+# --------------------------------------------------------
+# SNOWFLAKE CHECK (OPTIONAL)
 # --------------------------------------------------------
 SNOWFLAKE_ENABLED = "snowflake" in st.secrets
 
-# --------------------------------------------------------
-# SNOWFLAKE CONNECTION (SAFE)
-# --------------------------------------------------------
 @st.cache_resource
 def init_connection():
     if not SNOWFLAKE_ENABLED:
@@ -50,15 +112,7 @@ def init_connection():
     try:
         return get_active_session()
     except Exception:
-        return Session.builder.configs({
-            "account": st.secrets["snowflake"]["account"],
-            "user": st.secrets["snowflake"]["user"],
-            "password": st.secrets["snowflake"]["password"],
-            "warehouse": st.secrets["snowflake"]["warehouse"],
-            "database": st.secrets["snowflake"]["database"],
-            "schema": st.secrets["snowflake"]["schema"],
-            "role": st.secrets["snowflake"].get("role", "ACCOUNTADMIN")
-        }).create()
+        return Session.builder.configs(st.secrets["snowflake"]).create()
 
 session = init_connection()
 
@@ -66,81 +120,7 @@ session = init_connection()
 # UI HEADER
 # --------------------------------------------------------
 st.title("💬 Campus Self-Care & Wellness Chatbot")
-st.caption(
-    "A friendly AI chatbot that provides self-care guidance, "
-    "wellness tips, and student support — no clinic visit required."
-)
-
-if not SNOWFLAKE_ENABLED:
-    st.info("ℹ️ Demo Mode: Using general wellness knowledge")
-
-# --------------------------------------------------------
-# CONTEXT RETRIEVAL
-# --------------------------------------------------------
-def retrieve_context(user_input, top_k=3):
-    if not SNOWFLAKE_ENABLED:
-        return pd.DataFrame({
-            "QUESTION": [
-                "What should students do for mild health concerns?"
-            ],
-            "ANSWER": [
-                "For mild concerns, students can rest, stay hydrated, "
-                "eat balanced meals, manage stress, and monitor symptoms."
-            ]
-        })
-
-    sql = f"""
-        WITH q AS (
-            SELECT SNOWFLAKE.CORTEX.EMBED_TEXT_768(
-                'snowflake-arctic-embed-m',
-                '{user_input.replace("'", "''")}'
-            ) AS emb
-        )
-        SELECT
-            QUESTION,
-            ANSWER,
-            VECTOR_COSINE_SIMILARITY(QUESTION_EMBED, q.emb) AS score
-        FROM HEALTH_GUIDE_TABLE, q
-        ORDER BY score DESC
-        LIMIT {top_k}
-    """
-    return session.sql(sql).to_pandas()
-
-# --------------------------------------------------------
-# PROMPT BUILDER
-# --------------------------------------------------------
-def build_prompt(context_df, user_question):
-    context_text = "\n\n".join(
-        f"Q: {row.QUESTION}\nA: {row.ANSWER}"
-        for _, row in context_df.iterrows()
-    )
-
-    return f"""
-You are a calm, polite, and supportive self-care wellness chatbot
-for university students.
-
-PURPOSE:
-- Provide self-care and wellness guidance
-- Offer mental and lifestyle support
-- Help users understand mild symptoms
-
-RULES:
-- DO NOT diagnose medical conditions
-- DO NOT prescribe medication
-- DO NOT replace healthcare professionals
-- Encourage professional help ONLY if symptoms are severe or persistent
-
-STYLE:
-- Customer-service friendly
-- Reassuring and non-alarming
-- Easy to understand
-
-### Wellness References
-{context_text}
-
-### User Message
-{user_question}
-"""
+st.caption("A supportive chatbot for student self-care and daily wellness.")
 
 # --------------------------------------------------------
 # CHAT STATE
@@ -148,14 +128,17 @@ STYLE:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+if "first_reply_done" not in st.session_state:
+    st.session_state.first_reply_done = False
+
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # --------------------------------------------------------
-# CHAT INPUT HANDLER
+# CHAT INPUT
 # --------------------------------------------------------
-if prompt := st.chat_input("Type your message here..."):
+if prompt := st.chat_input("Type your message..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     with st.chat_message("user"):
@@ -163,47 +146,28 @@ if prompt := st.chat_input("Type your message here..."):
 
     with st.chat_message("assistant"):
         with st.spinner("Responding..."):
-            try:
-                # GREETING HANDLER (FIRST INTERACTION)
-                if is_greeting(prompt) and len(st.session_state.messages) <= 2:
-                    response = greeting_response()
 
-                else:
-                    context_df = retrieve_context(prompt)
-                    ai_prompt = build_prompt(context_df, prompt)
-
-                    if SNOWFLAKE_ENABLED:
-                        query = f"""
-                            SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                                'mistral-large2',
-                                '{ai_prompt.replace("'", "''")}'
-                            ) AS RESPONSE
-                        """
-                        result = session.sql(query).collect()
-                        response = result[0]["RESPONSE"]
-                    else:
-                        response = (
-                            "Thanks for sharing 😊\n\n"
-                            "For mild concerns, simple self-care can help a lot:\n"
-                            "• Get enough rest\n"
-                            "• Stay hydrated\n"
-                            "• Eat nutritious meals\n"
-                            "• Manage stress\n\n"
-                            "If your symptoms become severe or don’t improve, "
-                            "seeking professional help would be a good next step."
-                        )
-
-                st.markdown(response)
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": response}
+            # 🔹 FIRST CHAT ONLY
+            if not st.session_state.first_reply_done:
+                response = (
+                    "Hello! 👋😊\n\n"
+                    "I’m here to help. What can I do for you today?"
                 )
+                st.session_state.first_reply_done = True
 
-            except Exception as e:
-                st.error(f"❌ Chatbot Error: {e}")
+            else:
+                intent = detect_intent(prompt)
+                response = handle_intent(intent)
+
+            st.markdown(response)
+            st.session_state.messages.append(
+                {"role": "assistant", "content": response}
+            )
 
 # --------------------------------------------------------
-# RESET BUTTON
+# RESET
 # --------------------------------------------------------
 if st.button("🔄 Restart Conversation"):
     st.session_state.messages = []
-    st.success("Conversation cleared.")
+    st.session_state.first_reply_done = False
+    st.success("Conversation restarted.")
