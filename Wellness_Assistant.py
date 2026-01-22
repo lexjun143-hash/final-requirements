@@ -1,5 +1,6 @@
 import streamlit as st
 import random
+import re
 
 # --------------------------------------------------------
 # PAGE CONFIG
@@ -11,128 +12,135 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------
-# KEYWORDS & ANALYSIS DATA (EXPANDED)
+# GREETING KEYWORDS (FIRST CHAT ONLY)
+# --------------------------------------------------------
+GREETINGS = [
+    "hi", "hello", "hey",
+    "good morning", "good afternoon", "good evening"
+]
+
+# --------------------------------------------------------
+# KEYWORDS & ANALYSIS DATA (FULL)
 # --------------------------------------------------------
 
 EMOTIONS = {
-    "stress": ["stress", "pressure", "overwhelmed", "too much", "deadline"],
-    "sadness": ["sad", "down", "lonely", "cry", "empty", "hopeless"],
-    "anxiety": ["anxious", "worried", "panic", "nervous", "overthinking"],
-    "anger": ["angry", "mad", "frustrated", "irritated", "annoyed"],
-    "fear": ["scared", "afraid", "terrified", "unsafe"],
-    "guilt": ["guilty", "regret", "ashamed", "my fault"],
-    "fatigue": ["tired", "exhausted", "burnout", "drained"],
-    "numbness": ["numb", "nothing", "emotionless"],
-    "confusion": ["confused", "lost", "uncertain"],
-    "motivation": ["unmotivated", "lazy", "stuck", "giving up"],
-    "self_doubt": ["not good enough", "failure", "useless", "hate myself"]
+    "stress": ["stress", "pressure", "overwhelmed", "deadline", "burnout"],
+    "sadness": ["sad", "down", "lonely", "cry", "hopeless"],
+    "anxiety": ["anxious", "worried", "panic", "nervous"],
+    "anger": ["angry", "mad", "frustrated", "annoyed"],
+    "fatigue": ["tired", "exhausted", "drained"],
+    "self_doubt": ["not good enough", "failure", "useless"],
+    "numbness": ["numb", "empty", "emotionless"]
 }
 
 TOPICS = {
     "academics": ["school", "exam", "grades", "project", "study"],
-    "time": ["time", "late", "deadline", "schedule"],
-    "finance": ["money", "tuition", "fees", "broke"],
+    "time": ["time", "schedule", "deadline", "late"],
+    "finance": ["money", "tuition", "fees"],
     "family": ["family", "parents", "home"],
-    "friends": ["friends", "friendship", "peer"],
     "relationships": ["relationship", "breakup", "partner"],
-    "future": ["future", "career", "life", "purpose"],
-    "health": ["health", "body", "sick", "unwell"]
+    "future": ["future", "career", "life"],
+    "health": ["health", "body", "unwell"]
 }
 
-INTENSIFIERS = ["very", "too", "always", "never", "can't", "anymore"]
-DISTRESS_PHRASES = [
-    "i can't handle", "i give up", "nothing helps",
-    "i'm done", "what's the point"
+INTENSIFIERS = [
+    "very", "too", "always", "never",
+    "can't", "anymore", "really"
+]
+
+DISTRESS_PATTERNS = [
+    "i can't handle", "i give up",
+    "nothing helps", "i'm done",
+    "what's the point"
 ]
 
 # --------------------------------------------------------
-# ANALYZE USER MESSAGE
+# MESSAGE ANALYSIS
 # --------------------------------------------------------
 def analyze_message(text):
-    text = text.lower()
-    emotions = []
-    topics = []
+    text_lower = text.lower()
+    words = re.findall(r"\b\w+\b", text_lower)
 
-    intensity = any(word in text for word in INTENSIFIERS)
-    distress = any(phrase in text for phrase in DISTRESS_PHRASES)
+    emotions, topics = [], []
 
-    for emo, words in EMOTIONS.items():
-        if any(w in text for w in words):
+    intensity = any(word in words for word in INTENSIFIERS)
+    distress = any(phrase in text_lower for phrase in DISTRESS_PATTERNS)
+
+    for emo, keys in EMOTIONS.items():
+        if any(k in text_lower for k in keys):
             emotions.append(emo)
 
-    for topic, words in TOPICS.items():
-        if any(w in text for w in words):
+    for topic, keys in TOPICS.items():
+        if any(k in text_lower for k in keys):
             topics.append(topic)
 
     if not emotions:
         emotions.append("general")
 
-    return emotions, topics, intensity, distress
+    return words, emotions, topics, intensity, distress, len(words)
 
 # --------------------------------------------------------
 # RESPONSE GENERATOR
 # --------------------------------------------------------
-def generate_response(user_text, first_chat=False):
-    emotions, topics, intense, distress = analyze_message(user_text)
+def generate_response(user_text, first_chat):
+    text_lower = user_text.lower()
 
-    if first_chat:
+    # FIRST CHAT GREETING ONLY
+    if first_chat and any(greet in text_lower for greet in GREETINGS):
         return (
-            "Hello! 👋 I’m here to support your well-being.\n\n"
-            "You can talk to me about stress, school pressure, emotions, "
-            "personal struggles, or anything that’s been weighing on you.\n\n"
+            "Hello! 👋 Welcome.\n\n"
+            "I’m here to support your well-being. You can talk to me about stress, "
+            "school pressure, emotions, relationships, or anything on your mind.\n\n"
             "How can I help you today?"
         )
 
-    response = ""
+    words, emotions, topics, intense, distress, length = analyze_message(user_text)
 
-    # Empathy
+    reflection = " ".join(words[:10]) + "..." if length > 10 else user_text
+
+    response = (
+        f"Thank you for sharing this.\n\n"
+        f"From what you said about **“{reflection}”**, "
+        f"it sounds like this is something meaningful for you.\n\n"
+    )
+
+    if "general" in emotions:
+        response += "Even if it’s hard to explain, what you’re feeling still matters.\n\n"
     if "sadness" in emotions:
-        response += "It sounds like you’re feeling really down, and that’s not easy. 💙\n\n"
+        response += "Feeling sad like this can be heavy to carry.\n\n"
     if "stress" in emotions:
-        response += "You seem under a lot of pressure right now. That can feel overwhelming.\n\n"
+        response += "That pressure can really build up over time.\n\n"
     if "anxiety" in emotions:
-        response += "I can sense some anxiety in what you shared. Let’s slow things down together.\n\n"
+        response += "It sounds like your thoughts may be racing.\n\n"
     if "anger" in emotions:
-        response += "Feeling frustrated like this can be exhausting. It’s okay to acknowledge it.\n\n"
+        response += "Frustration like this can be exhausting.\n\n"
     if "self_doubt" in emotions:
-        response += "You might be being very hard on yourself right now. You deserve compassion too.\n\n"
+        response += "You might be judging yourself more harshly than you deserve.\n\n"
 
-    # Topic-based advice
     if "academics" in topics:
         response += (
-            "School pressure can really pile up. Breaking tasks into smaller steps "
-            "and giving yourself short breaks can help reduce that weight.\n\n"
-        )
-    if "future" in topics:
-        response += (
-            "Uncertainty about the future is very common, especially during college. "
-            "You don’t need to have everything figured out right now.\n\n"
-        )
-    if "relationships" in topics:
-        response += (
-            "Relationships can deeply affect our emotions. Talking about what you’re feeling "
-            "instead of holding it in can make a difference.\n\n"
+            "Academic stress is very common. Breaking tasks into smaller steps "
+            "can make things feel more manageable.\n\n"
         )
 
-    # Intensity & distress handling
     if intense:
         response += (
-            "It sounds like these feelings have been building up for a while. "
-            "You don’t have to deal with everything all at once.\n\n"
+            "These feelings seem strong right now. Let’s take things one step at a time.\n\n"
         )
 
     if distress:
         response += (
-            "I’m really glad you reached out instead of keeping this to yourself. "
-            "You matter, and your feelings deserve attention.\n\n"
+            "I’m really glad you reached out. You don’t have to carry this alone.\n\n"
         )
 
-    # Follow-up encouragement
+    if length < 4:
+        response += "If you want, you can share a bit more.\n\n"
+
     response += random.choice([
-        "If you’re comfortable, you can tell me more about what’s been going on.",
-        "What part of this feels hardest for you right now?",
-        "I’m listening—feel free to share whatever you need.",
-        "Would you like help thinking through one small step forward?"
+        "What part of this feels hardest right now?",
+        "Do you want to tell me more about what led to this?",
+        "I’m here — you can keep sharing.",
+        "What do you feel you need most at the moment?"
     ])
 
     return response
@@ -158,25 +166,17 @@ for msg in st.session_state.messages:
 # --------------------------------------------------------
 # CHAT INPUT
 # --------------------------------------------------------
-if user_input := st.chat_input("Type how you're feeling..."):
-    st.session_state.messages.append(
-        {"role": "user", "content": user_input}
-    )
+if user_input := st.chat_input("Share what’s on your mind…"):
+    st.session_state.messages.append({"role": "user", "content": user_input})
 
     with st.chat_message("user"):
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        response = generate_response(
-            user_input,
-            first_chat=st.session_state.first_chat
-        )
+        response = generate_response(user_input, st.session_state.first_chat)
         st.markdown(response)
 
-    st.session_state.messages.append(
-        {"role": "assistant", "content": response}
-    )
-
+    st.session_state.messages.append({"role": "assistant", "content": response})
     st.session_state.first_chat = False
 
 # --------------------------------------------------------
@@ -185,4 +185,4 @@ if user_input := st.chat_input("Type how you're feeling..."):
 if st.button("🔄 Reset Chat"):
     st.session_state.messages = []
     st.session_state.first_chat = True
-    st.success("Chat reset. You can start again.")
+    st.success("Chat cleared. You can start again.")
