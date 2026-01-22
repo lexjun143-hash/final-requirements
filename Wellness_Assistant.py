@@ -3,13 +3,17 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.context import get_active_session
 import pandas as pd
 
+# --------------------------------------------------------
+# PAGE CONFIG
+# --------------------------------------------------------
 st.set_page_config(
     page_title="Campus Self-Care & Wellness Chatbot",
-    page_icon="💬"
+    page_icon="💬",
+    layout="centered"
 )
 
 # --------------------------------------------------------
-# GREETING DETECTION
+# GREETING & SMALL TALK LOGIC
 # --------------------------------------------------------
 def is_greeting(text):
     greetings = [
@@ -22,17 +26,17 @@ def is_greeting(text):
 def greeting_response():
     return (
         "Hello! 👋😊\n\n"
-        "I’m your **Campus Self-Care & Wellness Chatbot**. "
-        "I can help you with:\n"
-        "- Self-care tips\n"
-        "- Stress and mental wellness guidance\n"
-        "- Understanding mild symptoms\n"
-        "- Healthy daily habits\n\n"
-        "How can I assist you today?"
+        "Welcome to the **Campus Self-Care & Wellness Chatbot**.\n\n"
+        "I’m here to help you with:\n"
+        "• Self-care tips\n"
+        "• Stress and mental wellness\n"
+        "• Understanding mild symptoms\n"
+        "• Healthy daily habits\n\n"
+        "How can I help you today?"
     )
 
 # --------------------------------------------------------
-# CHECK IF SNOWFLAKE IS CONFIGURED
+# CHECK SNOWFLAKE CONFIGURATION
 # --------------------------------------------------------
 SNOWFLAKE_ENABLED = "snowflake" in st.secrets
 
@@ -63,12 +67,12 @@ session = init_connection()
 # --------------------------------------------------------
 st.title("💬 Campus Self-Care & Wellness Chatbot")
 st.caption(
-    "A friendly self-care chatbot that supports students "
-    "without requiring clinic or hospital visits."
+    "A friendly AI chatbot that provides self-care guidance, "
+    "wellness tips, and student support — no clinic visit required."
 )
 
 if not SNOWFLAKE_ENABLED:
-    st.info("ℹ️ Demo Mode: General wellness guidance")
+    st.info("ℹ️ Demo Mode: Using general wellness knowledge")
 
 # --------------------------------------------------------
 # CONTEXT RETRIEVAL
@@ -77,11 +81,11 @@ def retrieve_context(user_input, top_k=3):
     if not SNOWFLAKE_ENABLED:
         return pd.DataFrame({
             "QUESTION": [
-                "How can students take care of themselves when feeling unwell?"
+                "What should students do for mild health concerns?"
             ],
             "ANSWER": [
-                "Self-care includes rest, hydration, balanced meals, stress management, "
-                "and monitoring symptoms over time."
+                "For mild concerns, students can rest, stay hydrated, "
+                "eat balanced meals, manage stress, and monitor symptoms."
             ]
         })
 
@@ -103,7 +107,7 @@ def retrieve_context(user_input, top_k=3):
     return session.sql(sql).to_pandas()
 
 # --------------------------------------------------------
-# PROMPT BUILDER (SELF-CARE)
+# PROMPT BUILDER
 # --------------------------------------------------------
 def build_prompt(context_df, user_question):
     context_text = "\n\n".join(
@@ -112,29 +116,30 @@ def build_prompt(context_df, user_question):
     )
 
     return f"""
-You are a polite, friendly, and supportive self-care wellness chatbot
+You are a calm, polite, and supportive self-care wellness chatbot
 for university students.
 
-Your role:
-- Provide self-care guidance
-- Offer stress and lifestyle tips
+PURPOSE:
+- Provide self-care and wellness guidance
+- Offer mental and lifestyle support
 - Help users understand mild symptoms
-- Encourage healthy habits
 
-Rules:
-- No medical diagnosis
-- No prescriptions
-- Suggest professional help only if symptoms are severe or persistent
+RULES:
+- DO NOT diagnose medical conditions
+- DO NOT prescribe medication
+- DO NOT replace healthcare professionals
+- Encourage professional help ONLY if symptoms are severe or persistent
+
+STYLE:
+- Customer-service friendly
+- Reassuring and non-alarming
+- Easy to understand
 
 ### Wellness References
 {context_text}
 
 ### User Message
 {user_question}
-
-### Response Style
-- Customer-service friendly
-- Calm and supportive
 """
 
 # --------------------------------------------------------
@@ -148,9 +153,9 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # --------------------------------------------------------
-# CHAT INPUT
+# CHAT INPUT HANDLER
 # --------------------------------------------------------
-if prompt := st.chat_input("Type a message..."):
+if prompt := st.chat_input("Type your message here..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     with st.chat_message("user"):
@@ -159,7 +164,7 @@ if prompt := st.chat_input("Type a message..."):
     with st.chat_message("assistant"):
         with st.spinner("Responding..."):
             try:
-                # 🔹 GREETING HANDLER
+                # GREETING HANDLER (FIRST INTERACTION)
                 if is_greeting(prompt) and len(st.session_state.messages) <= 2:
                     response = greeting_response()
 
@@ -178,10 +183,14 @@ if prompt := st.chat_input("Type a message..."):
                         response = result[0]["RESPONSE"]
                     else:
                         response = (
-                            "Thanks for reaching out 😊 "
-                            "For mild concerns, simple self-care like rest, hydration, "
-                            "proper nutrition, and stress management can help. "
-                            "Let me know what you’re experiencing."
+                            "Thanks for sharing 😊\n\n"
+                            "For mild concerns, simple self-care can help a lot:\n"
+                            "• Get enough rest\n"
+                            "• Stay hydrated\n"
+                            "• Eat nutritious meals\n"
+                            "• Manage stress\n\n"
+                            "If your symptoms become severe or don’t improve, "
+                            "seeking professional help would be a good next step."
                         )
 
                 st.markdown(response)
@@ -193,7 +202,7 @@ if prompt := st.chat_input("Type a message..."):
                 st.error(f"❌ Chatbot Error: {e}")
 
 # --------------------------------------------------------
-# RESTART BUTTON
+# RESET BUTTON
 # --------------------------------------------------------
 if st.button("🔄 Restart Conversation"):
     st.session_state.messages = []
