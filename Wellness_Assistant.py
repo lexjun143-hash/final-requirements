@@ -3,11 +3,20 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.context import get_active_session
 import pandas as pd
 
+st.set_page_config(page_title="Campus Health & Wellness AI Assistant")
+
 # --------------------------------------------------------
-# SNOWFLAKE CONNECTION
+# CHECK IF SNOWFLAKE IS CONFIGURED
+# --------------------------------------------------------
+SNOWFLAKE_ENABLED = "snowflake" in st.secrets
+
+# --------------------------------------------------------
+# SNOWFLAKE CONNECTION (SAFE)
 # --------------------------------------------------------
 @st.cache_resource
 def init_connection():
+    if not SNOWFLAKE_ENABLED:
+        return None
     try:
         return get_active_session()
     except Exception:
@@ -23,12 +32,26 @@ def init_connection():
 
 session = init_connection()
 
+# --------------------------------------------------------
+# UI HEADER
+# --------------------------------------------------------
 st.title("🏥 Campus Health & Wellness AI Assistant")
 
+if not SNOWFLAKE_ENABLED:
+    st.warning("⚠️ Running in **Demo Mode** (Snowflake not configured)")
+
 # --------------------------------------------------------
-# SEMANTIC RETRIEVAL (CORTEX EMBEDDINGS)
+# SEMANTIC RETRIEVAL
 # --------------------------------------------------------
 def retrieve_context(user_input, top_k=3):
+    if not SNOWFLAKE_ENABLED:
+        return pd.DataFrame({
+            "QUESTION": ["What should I do if I feel unwell on campus?"],
+            "ANSWER": [
+                "Visit the campus clinic, inform your instructor if needed, and rest properly."
+            ]
+        })
+
     sql = f"""
         WITH q AS (
             SELECT SNOWFLAKE.CORTEX.EMBED_TEXT_768(
@@ -67,12 +90,6 @@ Do NOT provide medical diagnoses or invent policies.
 
 ### User Question
 {user_question}
-
-### Answer Requirements
-- Clear and supportive
-- Student-friendly language
-- Actionable advice when appropriate
-- No medical hallucinations
 """
 
 # --------------------------------------------------------
@@ -86,7 +103,7 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # --------------------------------------------------------
-# CHAT INPUT → AI RESPONSE
+# CHAT INPUT
 # --------------------------------------------------------
 if prompt := st.chat_input("Ask a health or wellness question…"):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -100,14 +117,21 @@ if prompt := st.chat_input("Ask a health or wellness question…"):
                 context_df = retrieve_context(prompt)
                 ai_prompt = build_prompt(context_df, prompt)
 
-                query = f"""
-                    SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                        'mistral-large2',
-                        '{ai_prompt.replace("'", "''")}'
-                    ) AS RESPONSE
-                """
-                result = session.sql(query).collect()
-                response = result[0]["RESPONSE"]
+                if SNOWFLAKE_ENABLED:
+                    query = f"""
+                        SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                            'mistral-large2',
+                            '{ai_prompt.replace("'", "''")}'
+                        ) AS RESPONSE
+                    """
+                    result = session.sql(query).collect()
+                    response = result[0]["RESPONSE"]
+                else:
+                    response = (
+                        "Based on campus wellness guidelines, it is recommended to "
+                        "seek assistance from the campus clinic, maintain proper rest, "
+                        "and follow healthy lifestyle practices."
+                    )
 
                 st.markdown(response)
                 st.session_state.messages.append(
@@ -115,11 +139,7 @@ if prompt := st.chat_input("Ask a health or wellness question…"):
                 )
 
             except Exception as e:
-                error_msg = f"❌ AI Error: {e}"
-                st.error(error_msg)
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": error_msg}
-                )
+                st.error(f"❌ AI Error: {e}")
 
 # --------------------------------------------------------
 # RESTART BUTTON
