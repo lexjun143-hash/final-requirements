@@ -9,6 +9,29 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------
+# GREETING DETECTION
+# --------------------------------------------------------
+def is_greeting(text):
+    greetings = [
+        "hi", "hello", "hey", "good morning", "good afternoon",
+        "good evening", "start", "help"
+    ]
+    text = text.lower().strip()
+    return any(greet in text for greet in greetings)
+
+def greeting_response():
+    return (
+        "Hello! 👋😊\n\n"
+        "I’m your **Campus Self-Care & Wellness Chatbot**. "
+        "I can help you with:\n"
+        "- Self-care tips\n"
+        "- Stress and mental wellness guidance\n"
+        "- Understanding mild symptoms\n"
+        "- Healthy daily habits\n\n"
+        "How can I assist you today?"
+    )
+
+# --------------------------------------------------------
 # CHECK IF SNOWFLAKE IS CONFIGURED
 # --------------------------------------------------------
 SNOWFLAKE_ENABLED = "snowflake" in st.secrets
@@ -40,12 +63,12 @@ session = init_connection()
 # --------------------------------------------------------
 st.title("💬 Campus Self-Care & Wellness Chatbot")
 st.caption(
-    "A supportive AI chatbot that provides self-care guidance, "
-    "wellness tips, and symptom awareness — no clinic visit required."
+    "A friendly self-care chatbot that supports students "
+    "without requiring clinic or hospital visits."
 )
 
 if not SNOWFLAKE_ENABLED:
-    st.info("ℹ️ Demo Mode: Using general wellness knowledge")
+    st.info("ℹ️ Demo Mode: General wellness guidance")
 
 # --------------------------------------------------------
 # CONTEXT RETRIEVAL
@@ -54,11 +77,11 @@ def retrieve_context(user_input, top_k=3):
     if not SNOWFLAKE_ENABLED:
         return pd.DataFrame({
             "QUESTION": [
-                "What can I do if I feel tired, stressed, or slightly unwell?"
+                "How can students take care of themselves when feeling unwell?"
             ],
             "ANSWER": [
-                "Rest, hydrate, eat balanced meals, manage stress, and monitor symptoms. "
-                "Most mild concerns improve with proper self-care."
+                "Self-care includes rest, hydration, balanced meals, stress management, "
+                "and monitoring symptoms over time."
             ]
         })
 
@@ -80,7 +103,7 @@ def retrieve_context(user_input, top_k=3):
     return session.sql(sql).to_pandas()
 
 # --------------------------------------------------------
-# PROMPT BUILDER (SELF-CARE FOCUSED)
+# PROMPT BUILDER (SELF-CARE)
 # --------------------------------------------------------
 def build_prompt(context_df, user_question):
     context_text = "\n\n".join(
@@ -89,37 +112,29 @@ def build_prompt(context_df, user_question):
     )
 
     return f"""
-You are a friendly, calm, and supportive self-care wellness chatbot
-designed for university students.
+You are a polite, friendly, and supportive self-care wellness chatbot
+for university students.
 
-Your role is to:
-- Provide self-care advice
-- Suggest lifestyle and mental wellness practices
+Your role:
+- Provide self-care guidance
+- Offer stress and lifestyle tips
 - Help users understand mild symptoms
-- Encourage monitoring and prevention
+- Encourage healthy habits
 
-IMPORTANT RULES:
-- DO NOT provide medical diagnoses
-- DO NOT prescribe medication
-- DO NOT replace doctors
-- Only suggest professional help if symptoms are severe, persistent, or worsening
+Rules:
+- No medical diagnosis
+- No prescriptions
+- Suggest professional help only if symptoms are severe or persistent
 
-Always:
-- Use student-friendly language
-- Be reassuring and non-alarming
-- Promote healthy daily habits
-
-### Wellness Reference
+### Wellness References
 {context_text}
 
 ### User Message
 {user_question}
 
 ### Response Style
-- Supportive
-- Practical
-- Calm
-- Easy to understand
+- Customer-service friendly
+- Calm and supportive
 """
 
 # --------------------------------------------------------
@@ -135,36 +150,39 @@ for msg in st.session_state.messages:
 # --------------------------------------------------------
 # CHAT INPUT
 # --------------------------------------------------------
-if prompt := st.chat_input("How are you feeling today?"):
+if prompt := st.chat_input("Type a message..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
+        with st.spinner("Responding..."):
             try:
-                context_df = retrieve_context(prompt)
-                ai_prompt = build_prompt(context_df, prompt)
+                # 🔹 GREETING HANDLER
+                if is_greeting(prompt) and len(st.session_state.messages) <= 2:
+                    response = greeting_response()
 
-                if SNOWFLAKE_ENABLED:
-                    query = f"""
-                        SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                            'mistral-large2',
-                            '{ai_prompt.replace("'", "''")}'
-                        ) AS RESPONSE
-                    """
-                    result = session.sql(query).collect()
-                    response = result[0]["RESPONSE"]
                 else:
-                    response = (
-                        "Thanks for sharing how you’re feeling. For mild concerns, "
-                        "simple self-care like rest, hydration, proper nutrition, "
-                        "and stress management can help a lot. "
-                        "Try observing your symptoms over time and prioritize sleep. "
-                        "If something feels severe or doesn’t improve, seeking "
-                        "professional help would be a good next step."
-                    )
+                    context_df = retrieve_context(prompt)
+                    ai_prompt = build_prompt(context_df, prompt)
+
+                    if SNOWFLAKE_ENABLED:
+                        query = f"""
+                            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                                'mistral-large2',
+                                '{ai_prompt.replace("'", "''")}'
+                            ) AS RESPONSE
+                        """
+                        result = session.sql(query).collect()
+                        response = result[0]["RESPONSE"]
+                    else:
+                        response = (
+                            "Thanks for reaching out 😊 "
+                            "For mild concerns, simple self-care like rest, hydration, "
+                            "proper nutrition, and stress management can help. "
+                            "Let me know what you’re experiencing."
+                        )
 
                 st.markdown(response)
                 st.session_state.messages.append(
