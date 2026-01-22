@@ -1,7 +1,4 @@
 import streamlit as st
-from snowflake.snowpark import Session
-from snowflake.snowpark.context import get_active_session
-import pandas as pd
 
 # --------------------------------------------------------
 # PAGE CONFIG
@@ -13,114 +10,144 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------
-# INTENT DETECTION
+# INTENT & EMOTION DETECTION
 # --------------------------------------------------------
 def detect_intent(text):
     text = text.lower()
 
-    if any(word in text for word in ["stress", "anxious", "anxiety", "overwhelmed"]):
-        return "stress"
+    intents = {
+        "features": ["what can you do", "help", "features", "services"],
+        "stress": ["stress", "anxious", "anxiety", "overwhelmed", "pressure"],
+        "sad": ["sad", "down", "lonely", "depressed"],
+        "fatigue": ["tired", "fatigue", "exhausted", "burnout"],
+        "sleep": ["sleep", "insomnia", "can't sleep"],
+        "headache": ["headache", "head hurts", "body pain", "neck pain"],
+        "motivation": ["unmotivated", "no motivation", "lazy", "burned out"],
+        "study": ["study", "exam", "deadline", "school", "academic"],
+        "routine": ["routine", "habit", "daily", "lifestyle"],
+        "emergency": ["suicide", "kill myself", "hurt myself", "die"]
+    }
 
-    if any(word in text for word in ["tired", "fatigue", "exhausted", "sleepy"]):
-        return "fatigue"
-
-    if any(word in text for word in ["headache", "head hurts"]):
-        return "headache"
-
-    if any(word in text for word in ["can't sleep", "insomnia", "sleep"]):
-        return "sleep"
-
-    if any(word in text for word in ["what can you do", "help", "features"]):
-        return "features"
+    for intent, keywords in intents.items():
+        if any(word in text for word in keywords):
+            return intent
 
     return "general"
 
 # --------------------------------------------------------
-# CHATBOT RESPONSES (NO AI, SAFE FALLBACK)
+# RESPONSE ENGINE
 # --------------------------------------------------------
 def handle_intent(intent):
     responses = {
         "features": (
             "I can help you with:\n\n"
-            "• Managing stress and anxiety\n"
-            "• Improving sleep habits\n"
-            "• Dealing with tiredness or burnout\n"
-            "• Understanding mild discomfort like headaches\n"
-            "• Daily self-care and wellness tips\n\n"
+            "• Stress, anxiety, and emotional support\n"
+            "• Sleep and fatigue concerns\n"
+            "• Study pressure and burnout\n"
+            "• Motivation and focus\n"
+            "• Healthy routines and self-care habits\n\n"
             "Just tell me what you’re experiencing."
         ),
 
         "stress": (
-            "Feeling stressed is very common, especially with school responsibilities.\n\n"
-            "Here are some things you can try:\n"
-            "• Take slow, deep breaths for a few minutes\n"
-            "• Step away from screens briefly\n"
-            "• Break tasks into smaller steps\n"
-            "• Talk to someone you trust\n\n"
-            "If stress feels constant or overwhelming, it may help to seek professional support."
+            "That sounds stressful, and it’s completely understandable. 💛\n\n"
+            "Let’s slow things down a bit:\n"
+            "• Take 5 slow, deep breaths\n"
+            "• Focus on one task at a time\n"
+            "• Give yourself short breaks\n\n"
+            "Would you like help managing stress right now or planning your tasks?"
+        ),
+
+        "sad": (
+            "I’m really glad you shared that. 💙\n\n"
+            "Feeling sad or lonely can happen to anyone.\n"
+            "Some gentle steps:\n"
+            "• Talk to someone you trust\n"
+            "• Do something comforting\n"
+            "• Be kind to yourself\n\n"
+            "If this feeling lasts for a long time, professional support can really help."
         ),
 
         "fatigue": (
-            "Feeling tired can come from lack of rest, stress, or busy schedules.\n\n"
-            "You may try:\n"
+            "Feeling exhausted can take a toll. 😴\n\n"
+            "You might try:\n"
             "• Getting enough sleep\n"
             "• Drinking water regularly\n"
-            "• Eating balanced meals\n"
-            "• Taking short breaks during the day\n\n"
-            "Let me know if this has been going on for a long time."
-        ),
-
-        "headache": (
-            "Mild headaches can happen due to stress, dehydration, or screen time.\n\n"
-            "Helpful self-care tips:\n"
-            "• Drink water\n"
-            "• Rest your eyes\n"
-            "• Stretch your neck and shoulders\n"
-            "• Take a short rest in a quiet place\n\n"
-            "If headaches become severe or frequent, professional advice may be needed."
+            "• Taking short breaks\n"
+            "• Reducing screen time\n\n"
+            "Has this been going on for days or weeks?"
         ),
 
         "sleep": (
-            "Sleep problems are common among students.\n\n"
-            "You can try:\n"
-            "• Going to bed at the same time daily\n"
-            "• Avoiding screens before sleep\n"
-            "• Creating a calm bedtime routine\n"
-            "• Limiting caffeine late in the day\n\n"
-            "If sleep issues continue, seeking help could be beneficial."
+            "Sleep issues are very common among students.\n\n"
+            "Try these tonight:\n"
+            "• Go to bed at the same time\n"
+            "• Avoid screens 1 hour before sleep\n"
+            "• Keep your room quiet and dim\n\n"
+            "Would you like help creating a bedtime routine?"
+        ),
+
+        "headache": (
+            "Headaches can be uncomfortable. 🤕\n\n"
+            "You may try:\n"
+            "• Drinking water\n"
+            "• Resting your eyes\n"
+            "• Stretching your neck and shoulders\n\n"
+            "If headaches are frequent or severe, seeking professional advice is important."
+        ),
+
+        "motivation": (
+            "Losing motivation happens, especially when you’re tired or overwhelmed.\n\n"
+            "Let’s start small:\n"
+            "• Pick one easy task\n"
+            "• Set a short time limit\n"
+            "• Reward yourself afterward\n\n"
+            "Want help breaking something down?"
+        ),
+
+        "study": (
+            "Academic pressure can be really heavy. 🎓\n\n"
+            "Helpful strategies:\n"
+            "• Break study time into short sessions\n"
+            "• Prioritize urgent tasks\n"
+            "• Take planned breaks\n\n"
+            "What subject or task are you working on?"
+        ),
+
+        "routine": (
+            "A simple routine can make a big difference. 🌱\n\n"
+            "A healthy day often includes:\n"
+            "• Consistent sleep\n"
+            "• Balanced meals\n"
+            "• Light physical activity\n"
+            "• Time to relax\n\n"
+            "Would you like me to help you create a simple routine?"
+        ),
+
+        "emergency": (
+            "I’m really concerned about your safety. ❤️\n\n"
+            "You’re not alone, and help is available.\n"
+            "Please consider reaching out to a trusted person or a professional right away.\n\n"
+            "If you’re in immediate danger, please contact local emergency services."
         ),
 
         "general": (
-            "Thanks for sharing. 😊\n\n"
-            "I can help with self-care, stress management, sleep habits, "
-            "and understanding mild concerns. "
-            "Tell me more about what you’re feeling."
+            "I’m here to help and listen. 😊\n\n"
+            "You can talk to me about stress, sleep, motivation, "
+            "school pressure, or general wellness. What’s on your mind?"
         )
     }
 
     return responses.get(intent, responses["general"])
 
 # --------------------------------------------------------
-# SNOWFLAKE CHECK (OPTIONAL)
-# --------------------------------------------------------
-SNOWFLAKE_ENABLED = "snowflake" in st.secrets
-
-@st.cache_resource
-def init_connection():
-    if not SNOWFLAKE_ENABLED:
-        return None
-    try:
-        return get_active_session()
-    except Exception:
-        return Session.builder.configs(st.secrets["snowflake"]).create()
-
-session = init_connection()
-
-# --------------------------------------------------------
 # UI HEADER
 # --------------------------------------------------------
 st.title("💬 Campus Self-Care & Wellness Chatbot")
-st.caption("A supportive chatbot for student self-care and daily wellness.")
+st.caption(
+    "A supportive, customer-service–style chatbot for student wellness "
+    "and everyday challenges."
+)
 
 # --------------------------------------------------------
 # CHAT STATE
@@ -147,11 +174,11 @@ if prompt := st.chat_input("Type your message..."):
     with st.chat_message("assistant"):
         with st.spinner("Responding..."):
 
-            # 🔹 FIRST CHAT ONLY
+            # FIRST CHAT RULE (STRICT)
             if not st.session_state.first_reply_done:
                 response = (
                     "Hello! 👋😊\n\n"
-                    "I’m here to help. What can I do for you today?"
+                    "What can I do for you today?"
                 )
                 st.session_state.first_reply_done = True
 
