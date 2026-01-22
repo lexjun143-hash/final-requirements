@@ -5,7 +5,7 @@ import random
 # PAGE CONFIG
 # --------------------------------------------------------
 st.set_page_config(
-    page_title="Campus Emotional Support Chatbot",
+    page_title="Campus Wellness Support Chatbot",
     page_icon="💙",
     layout="centered"
 )
@@ -13,174 +13,144 @@ st.set_page_config(
 # --------------------------------------------------------
 # KEYWORDS & ANALYSIS DATA (EXPANDED)
 # --------------------------------------------------------
+
 EMOTIONS = {
-    "stress": ["stress", "pressure", "overwhelmed", "deadline", "too much"],
+    "stress": ["stress", "pressure", "overwhelmed", "too much", "deadline"],
     "sadness": ["sad", "down", "lonely", "cry", "empty", "hopeless"],
-    "fatigue": ["tired", "exhausted", "burnout", "fatigue", "drained"],
-    "anxiety": ["anxious", "anxiety", "worried", "panic", "nervous"],
-    "anger": ["angry", "mad", "frustrated", "irritated"],
-    "fear": ["scared", "afraid", "fearful"],
+    "anxiety": ["anxious", "worried", "panic", "nervous", "overthinking"],
+    "anger": ["angry", "mad", "frustrated", "irritated", "annoyed"],
+    "fear": ["scared", "afraid", "terrified", "unsafe"],
+    "guilt": ["guilty", "regret", "ashamed", "my fault"],
+    "fatigue": ["tired", "exhausted", "burnout", "drained"],
+    "numbness": ["numb", "nothing", "emotionless"],
     "confusion": ["confused", "lost", "uncertain"],
-    "motivation_loss": ["unmotivated", "stuck", "no energy"],
-    "sleep": ["sleep", "insomnia", "can't sleep", "restless"]
+    "motivation": ["unmotivated", "lazy", "stuck", "giving up"],
+    "self_doubt": ["not good enough", "failure", "useless", "hate myself"]
 }
 
 TOPICS = {
     "academics": ["school", "exam", "grades", "project", "study"],
+    "time": ["time", "late", "deadline", "schedule"],
+    "finance": ["money", "tuition", "fees", "broke"],
     "family": ["family", "parents", "home"],
-    "friends": ["friends", "relationship", "social"],
-    "future": ["future", "career", "life"],
-    "finance": ["money", "tuition", "budget", "broke"],
-    "work": ["job", "work", "shift"],
-    "self_esteem": ["confidence", "insecure", "hate myself"]
+    "friends": ["friends", "friendship", "peer"],
+    "relationships": ["relationship", "breakup", "partner"],
+    "future": ["future", "career", "life", "purpose"],
+    "health": ["health", "body", "sick", "unwell"]
 }
 
-INTENSIFIERS = [
-    "very", "too", "always", "never", "can't", "anymore", "really", "extremely"
+INTENSIFIERS = ["very", "too", "always", "never", "can't", "anymore"]
+DISTRESS_PHRASES = [
+    "i can't handle", "i give up", "nothing helps",
+    "i'm done", "what's the point"
 ]
 
 # --------------------------------------------------------
-# MESSAGE ANALYSIS
+# ANALYZE USER MESSAGE
 # --------------------------------------------------------
 def analyze_message(text):
     text = text.lower()
-    emotions, topics = [], []
-    intensity = any(i in text for i in INTENSIFIERS)
+    emotions = []
+    topics = []
 
-    for e, words in EMOTIONS.items():
+    intensity = any(word in text for word in INTENSIFIERS)
+    distress = any(phrase in text for phrase in DISTRESS_PHRASES)
+
+    for emo, words in EMOTIONS.items():
         if any(w in text for w in words):
-            emotions.append(e)
+            emotions.append(emo)
 
-    for t, words in TOPICS.items():
+    for topic, words in TOPICS.items():
         if any(w in text for w in words):
-            topics.append(t)
+            topics.append(topic)
 
-    return emotions or ["general"], topics, intensity
+    if not emotions:
+        emotions.append("general")
 
-# --------------------------------------------------------
-# REFLECTION
-# --------------------------------------------------------
-def reflect_message(emotions, topics, intensity):
-    lines = ["From what you shared, it sounds like:"]
-
-    for e in emotions:
-        lines.append(f"• you’re experiencing **{e.replace('_', ' ')}**")
-
-    for t in topics:
-        lines.append(f"• this connects to **{t.replace('_', ' ')}**")
-
-    if intensity:
-        lines.append("• these feelings feel especially strong right now")
-
-    return "\n".join(lines)
+    return emotions, topics, intensity, distress
 
 # --------------------------------------------------------
-# ADVICE ENGINE
+# RESPONSE GENERATOR
 # --------------------------------------------------------
-def give_advice(emotions, depth):
-    advice_bank = {
-        "stress": [
-            "Try focusing on one small task at a time.",
-            "Pausing briefly can reduce mental overload.",
-            "You don’t need to solve everything today."
-        ],
-        "sadness": [
-            "It’s okay to feel this way.",
-            "Comforting routines can help during low moments.",
-            "You deserve patience and kindness."
-        ],
-        "fatigue": [
-            "Your body may be asking for rest.",
-            "Short breaks still count as recovery.",
-            "Rest is productive."
-        ],
-        "anxiety": [
-            "Slow breathing can calm your nervous system.",
-            "Grounding yourself in the present may help.",
-            "You are safe right now."
-        ],
-        "general": [
-            "You’re doing the best you can.",
-            "One step at a time is enough.",
-            "You deserve support."
-        ]
-    }
+def generate_response(user_text, first_chat=False):
+    emotions, topics, intense, distress = analyze_message(user_text)
 
-    responses = []
-    for e in emotions:
-        tips = advice_bank.get(e, advice_bank["general"])
-        responses.append(f"💡 {tips[min(depth, len(tips) - 1)]}")
+    if first_chat:
+        return (
+            "Hello! 👋 I’m here to support your well-being.\n\n"
+            "You can talk to me about stress, school pressure, emotions, "
+            "personal struggles, or anything that’s been weighing on you.\n\n"
+            "How can I help you today?"
+        )
 
-    return "\n".join(responses)
+    response = ""
 
-# --------------------------------------------------------
-# ADVANCED FOLLOW-UP PROMPTS
-# --------------------------------------------------------
-FOLLOW_UP_BANK = {
-    "reflection": [
-        "Does this describe how you’re feeling?",
-        "Did I understand you correctly?",
-        "Does any part of this stand out to you?"
-    ],
-    "clarification": [
-        "What part feels hardest right now?",
-        "When did this start to feel this way?",
-        "Is there something specific triggering this?"
-    ],
-    "coping": [
-        "What have you tried so far to cope?",
-        "What usually helps, even a little?",
-        "Would you like to explore a small next step?"
-    ],
-    "satisfaction": [
-        "Is this helping you feel a bit lighter?",
-        "Do you feel heard right now?",
-        "Would you like me to keep listening or give advice?"
-    ]
-}
+    # Empathy
+    if "sadness" in emotions:
+        response += "It sounds like you’re feeling really down, and that’s not easy. 💙\n\n"
+    if "stress" in emotions:
+        response += "You seem under a lot of pressure right now. That can feel overwhelming.\n\n"
+    if "anxiety" in emotions:
+        response += "I can sense some anxiety in what you shared. Let’s slow things down together.\n\n"
+    if "anger" in emotions:
+        response += "Feeling frustrated like this can be exhausting. It’s okay to acknowledge it.\n\n"
+    if "self_doubt" in emotions:
+        response += "You might be being very hard on yourself right now. You deserve compassion too.\n\n"
 
-def choose_follow_up(turn_count):
-    if turn_count < 2:
-        category = "reflection"
-    elif turn_count < 4:
-        category = "clarification"
-    elif turn_count < 6:
-        category = "coping"
-    else:
-        category = "satisfaction"
+    # Topic-based advice
+    if "academics" in topics:
+        response += (
+            "School pressure can really pile up. Breaking tasks into smaller steps "
+            "and giving yourself short breaks can help reduce that weight.\n\n"
+        )
+    if "future" in topics:
+        response += (
+            "Uncertainty about the future is very common, especially during college. "
+            "You don’t need to have everything figured out right now.\n\n"
+        )
+    if "relationships" in topics:
+        response += (
+            "Relationships can deeply affect our emotions. Talking about what you’re feeling "
+            "instead of holding it in can make a difference.\n\n"
+        )
 
-    return random.choice(FOLLOW_UP_BANK[category])
+    # Intensity & distress handling
+    if intense:
+        response += (
+            "It sounds like these feelings have been building up for a while. "
+            "You don’t have to deal with everything all at once.\n\n"
+        )
+
+    if distress:
+        response += (
+            "I’m really glad you reached out instead of keeping this to yourself. "
+            "You matter, and your feelings deserve attention.\n\n"
+        )
+
+    # Follow-up encouragement
+    response += random.choice([
+        "If you’re comfortable, you can tell me more about what’s been going on.",
+        "What part of this feels hardest for you right now?",
+        "I’m listening—feel free to share whatever you need.",
+        "Would you like help thinking through one small step forward?"
+    ])
+
+    return response
 
 # --------------------------------------------------------
-# UI HEADER
-# --------------------------------------------------------
-st.title("💙 Campus Emotional Support Chatbot")
-st.caption("A space where you can talk freely and be understood.")
-
-# --------------------------------------------------------
-# SESSION STATE (EXPANDED)
+# SESSION STATE
 # --------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "first_reply" not in st.session_state:
-    st.session_state.first_reply = True
-
-if "depth" not in st.session_state:
-    st.session_state.depth = 0
-
-if "turn_count" not in st.session_state:
-    st.session_state.turn_count = 0
-
-if "emotion_history" not in st.session_state:
-    st.session_state.emotion_history = []
-
-if "topic_history" not in st.session_state:
-    st.session_state.topic_history = []
+if "first_chat" not in st.session_state:
+    st.session_state.first_chat = True
 
 # --------------------------------------------------------
-# DISPLAY CHAT HISTORY
+# UI
 # --------------------------------------------------------
+st.title("💙 Campus Wellness Support Chatbot")
+
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -188,46 +158,31 @@ for msg in st.session_state.messages:
 # --------------------------------------------------------
 # CHAT INPUT
 # --------------------------------------------------------
-if prompt := st.chat_input("You can share anything here…"):
-
-    st.session_state.turn_count += 1
-    st.session_state.messages.append({"role": "user", "content": prompt})
+if user_input := st.chat_input("Type how you're feeling..."):
+    st.session_state.messages.append(
+        {"role": "user", "content": user_input}
+    )
 
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("Understanding..."):
+        response = generate_response(
+            user_input,
+            first_chat=st.session_state.first_chat
+        )
+        st.markdown(response)
 
-            if st.session_state.first_reply:
-                response = "Hello! 👋😊\n\nWhat can I do for you today?"
-                st.session_state.first_reply = False
-            else:
-                emotions, topics, intensity = analyze_message(prompt)
-                st.session_state.emotion_history.extend(emotions)
-                st.session_state.topic_history.extend(topics)
+    st.session_state.messages.append(
+        {"role": "assistant", "content": response}
+    )
 
-                reflection = reflect_message(emotions, topics, intensity)
-                advice = give_advice(emotions, st.session_state.depth)
-                follow_up = choose_follow_up(st.session_state.turn_count)
-
-                response = (
-                    f"{reflection}\n\n"
-                    f"{advice}\n\n"
-                    f"{follow_up}\n\n"
-                    "You can take your time — I’m here with you."
-                )
-
-                st.session_state.depth += 1
-
-            st.markdown(response)
-            st.session_state.messages.append(
-                {"role": "assistant", "content": response}
-            )
+    st.session_state.first_chat = False
 
 # --------------------------------------------------------
-# RESET
+# RESET BUTTON
 # --------------------------------------------------------
-if st.button("🔄 Restart Conversation"):
-    st.session_state.clear()
-    st.rerun()
+if st.button("🔄 Reset Chat"):
+    st.session_state.messages = []
+    st.session_state.first_chat = True
+    st.success("Chat reset. You can start again.")
