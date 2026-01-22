@@ -15,126 +15,83 @@ st.set_page_config(
 def detect_intent(text):
     text = text.lower()
 
-    intents = {
-        "features": ["what can you do", "help", "features", "services"],
-        "stress": ["stress", "anxious", "anxiety", "overwhelmed", "pressure"],
-        "sad": ["sad", "down", "lonely", "depressed"],
-        "fatigue": ["tired", "fatigue", "exhausted", "burnout"],
-        "sleep": ["sleep", "insomnia", "can't sleep"],
-        "headache": ["headache", "head hurts", "body pain", "neck pain"],
-        "motivation": ["unmotivated", "no motivation", "lazy", "burned out"],
-        "study": ["study", "exam", "deadline", "school", "academic"],
-        "routine": ["routine", "habit", "daily", "lifestyle"],
-        "emergency": ["suicide", "kill myself", "hurt myself", "die"]
-    }
+    if any(word in text for word in ["suicide", "kill myself", "hurt myself", "end my life"]):
+        return "emergency"
 
-    for intent, keywords in intents.items():
-        if any(word in text for word in keywords):
-            return intent
+    if any(word in text for word in ["stress", "anxious", "anxiety", "pressure", "overwhelmed"]):
+        return "stress"
+
+    if any(word in text for word in ["sad", "down", "lonely", "cry", "depressed"]):
+        return "sad"
+
+    if any(word in text for word in ["tired", "exhausted", "burnout", "fatigue"]):
+        return "fatigue"
+
+    if any(word in text for word in ["sleep", "insomnia", "can't sleep"]):
+        return "sleep"
+
+    if any(word in text for word in ["help", "what can you do", "features"]):
+        return "features"
 
     return "general"
 
 # --------------------------------------------------------
-# RESPONSE ENGINE
+# FOLLOW-UP QUESTIONS
+# --------------------------------------------------------
+def follow_up_question(intent):
+    follow_ups = {
+        "stress": "Do you want to share what’s been causing the stress lately?",
+        "sad": "Would you like to talk more about what’s been weighing on you?",
+        "fatigue": "Has this tiredness been going on for a while?",
+        "sleep": "What usually makes it hardest for you to fall asleep?",
+        "general": "Would you like to tell me more about how you’re feeling right now?"
+    }
+    return follow_ups.get(intent, follow_ups["general"])
+
+# --------------------------------------------------------
+# SUPPORTIVE RESPONSES
 # --------------------------------------------------------
 def handle_intent(intent):
     responses = {
         "features": (
-            "I can help you with:\n\n"
-            "• Stress, anxiety, and emotional support\n"
-            "• Sleep and fatigue concerns\n"
-            "• Study pressure and burnout\n"
-            "• Motivation and focus\n"
-            "• Healthy routines and self-care habits\n\n"
-            "Just tell me what you’re experiencing."
+            "I’m here to support you emotionally and mentally. 💙\n\n"
+            "I can help you by:\n"
+            "• Listening to your thoughts and feelings\n"
+            "• Helping you process stress or anxiety\n"
+            "• Offering gentle self-care suggestions\n"
+            "• Giving you a safe space to talk freely\n\n"
+            "You can share as much as you want."
         ),
 
         "stress": (
-            "That sounds stressful, and it’s completely understandable. 💛\n\n"
-            "Let’s slow things down a bit:\n"
-            "• Take 5 slow, deep breaths\n"
-            "• Focus on one task at a time\n"
-            "• Give yourself short breaks\n\n"
-            "Would you like help managing stress right now or planning your tasks?"
+            "That sounds really overwhelming. 💛\n\n"
+            "It’s okay to feel stressed when things pile up."
         ),
 
         "sad": (
-            "I’m really glad you shared that. 💙\n\n"
-            "Feeling sad or lonely can happen to anyone.\n"
-            "Some gentle steps:\n"
-            "• Talk to someone you trust\n"
-            "• Do something comforting\n"
-            "• Be kind to yourself\n\n"
-            "If this feeling lasts for a long time, professional support can really help."
+            "I’m really glad you told me this. 💙\n\n"
+            "What you’re feeling matters."
         ),
 
         "fatigue": (
-            "Feeling exhausted can take a toll. 😴\n\n"
-            "You might try:\n"
-            "• Getting enough sleep\n"
-            "• Drinking water regularly\n"
-            "• Taking short breaks\n"
-            "• Reducing screen time\n\n"
-            "Has this been going on for days or weeks?"
+            "Being constantly tired can drain you emotionally and physically. 😴\n\n"
+            "You deserve rest."
         ),
 
         "sleep": (
-            "Sleep issues are very common among students.\n\n"
-            "Try these tonight:\n"
-            "• Go to bed at the same time\n"
-            "• Avoid screens 1 hour before sleep\n"
-            "• Keep your room quiet and dim\n\n"
-            "Would you like help creating a bedtime routine?"
-        ),
-
-        "headache": (
-            "Headaches can be uncomfortable. 🤕\n\n"
-            "You may try:\n"
-            "• Drinking water\n"
-            "• Resting your eyes\n"
-            "• Stretching your neck and shoulders\n\n"
-            "If headaches are frequent or severe, seeking professional advice is important."
-        ),
-
-        "motivation": (
-            "Losing motivation happens, especially when you’re tired or overwhelmed.\n\n"
-            "Let’s start small:\n"
-            "• Pick one easy task\n"
-            "• Set a short time limit\n"
-            "• Reward yourself afterward\n\n"
-            "Want help breaking something down?"
-        ),
-
-        "study": (
-            "Academic pressure can be really heavy. 🎓\n\n"
-            "Helpful strategies:\n"
-            "• Break study time into short sessions\n"
-            "• Prioritize urgent tasks\n"
-            "• Take planned breaks\n\n"
-            "What subject or task are you working on?"
-        ),
-
-        "routine": (
-            "A simple routine can make a big difference. 🌱\n\n"
-            "A healthy day often includes:\n"
-            "• Consistent sleep\n"
-            "• Balanced meals\n"
-            "• Light physical activity\n"
-            "• Time to relax\n\n"
-            "Would you like me to help you create a simple routine?"
+            "Sleep problems can be frustrating.\n\n"
+            "Your mind might just need some calm right now."
         ),
 
         "emergency": (
             "I’m really concerned about your safety. ❤️\n\n"
-            "You’re not alone, and help is available.\n"
-            "Please consider reaching out to a trusted person or a professional right away.\n\n"
-            "If you’re in immediate danger, please contact local emergency services."
+            "You deserve immediate support. Please reach out to someone you trust "
+            "or contact local emergency services right now."
         ),
 
         "general": (
-            "I’m here to help and listen. 😊\n\n"
-            "You can talk to me about stress, sleep, motivation, "
-            "school pressure, or general wellness. What’s on your mind?"
+            "I’m here with you. 😊\n\n"
+            "You can talk to me anytime."
         )
     }
 
@@ -145,8 +102,7 @@ def handle_intent(intent):
 # --------------------------------------------------------
 st.title("💬 Campus Self-Care & Wellness Chatbot")
 st.caption(
-    "A supportive, customer-service–style chatbot for student wellness "
-    "and everyday challenges."
+    "A supportive space where you can talk freely until you feel better."
 )
 
 # --------------------------------------------------------
@@ -158,6 +114,9 @@ if "messages" not in st.session_state:
 if "first_reply_done" not in st.session_state:
     st.session_state.first_reply_done = False
 
+# --------------------------------------------------------
+# DISPLAY CHAT HISTORY
+# --------------------------------------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -165,26 +124,25 @@ for msg in st.session_state.messages:
 # --------------------------------------------------------
 # CHAT INPUT
 # --------------------------------------------------------
-if prompt := st.chat_input("Type your message..."):
+if prompt := st.chat_input("Type your thoughts here…"):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Responding..."):
+        with st.spinner("Listening..."):
 
-            # FIRST CHAT RULE (STRICT)
+            # FIRST MESSAGE ONLY
             if not st.session_state.first_reply_done:
-                response = (
-                    "Hello! 👋😊\n\n"
-                    "What can I do for you today?"
-                )
+                response = "Hello! 👋😊\n\nWhat can I do for you today?"
                 st.session_state.first_reply_done = True
-
             else:
                 intent = detect_intent(prompt)
-                response = handle_intent(intent)
+                response = (
+                    f"{handle_intent(intent)}\n\n"
+                    f"{follow_up_question(intent)}"
+                )
 
             st.markdown(response)
             st.session_state.messages.append(
@@ -192,9 +150,9 @@ if prompt := st.chat_input("Type your message..."):
             )
 
 # --------------------------------------------------------
-# RESET
+# RESET BUTTON (FIXED & FINAL)
 # --------------------------------------------------------
 if st.button("🔄 Restart Conversation"):
-    st.session_state.messages = []
+    st.session_state.messages.clear()
     st.session_state.first_reply_done = False
-    st.success("Conversation restarted.")
+    st.rerun()
