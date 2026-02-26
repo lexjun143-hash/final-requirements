@@ -1,6 +1,7 @@
 import streamlit as st
 import random
 import re
+import pandas as pd
 
 # --------------------------------------------------------
 # PAGE CONFIG
@@ -10,6 +11,19 @@ st.set_page_config(
     page_icon="💙",
     layout="centered"
 )
+
+# --------------------------------------------------------
+# LOAD CSV DATASET
+# --------------------------------------------------------
+@st.cache_data
+def load_dataset():
+    try:
+        df = pd.read_csv("wellness_dataset_1000.csv")
+        return df
+    except:
+        return None
+
+df = load_dataset()
 
 # --------------------------------------------------------
 # GREETING & GRATITUDE KEYWORDS
@@ -38,20 +52,7 @@ EMOTIONS = {
     "numbness": ["numb", "empty", "emotionless"]
 }
 
-TOPICS = {
-    "academics": ["school", "exam", "grades", "project", "study"],
-    "time": ["time", "schedule", "deadline", "late"],
-    "finance": ["money", "tuition", "fees"],
-    "family": ["family", "parents", "home"],
-    "relationships": ["relationship", "breakup", "partner"],
-    "future": ["future", "career", "life"],
-    "health": ["health", "body", "unwell"]
-}
-
-INTENSIFIERS = [
-    "very", "too", "always", "never",
-    "can't", "anymore", "really"
-]
+INTENSIFIERS = ["very", "too", "always", "never", "can't", "anymore", "really"]
 
 DISTRESS_PATTERNS = [
     "i can't handle", "i give up",
@@ -66,7 +67,7 @@ def analyze_message(text):
     text_lower = text.lower()
     words = re.findall(r"\b\w+\b", text_lower)
 
-    emotions, topics = [], []
+    emotions = []
 
     intensity = any(word in words for word in INTENSIFIERS)
     distress = any(phrase in text_lower for phrase in DISTRESS_PATTERNS)
@@ -76,89 +77,95 @@ def analyze_message(text):
         if any(k in text_lower for k in keys):
             emotions.append(emo)
 
-    for topic, keys in TOPICS.items():
-        if any(k in text_lower for k in keys):
-            topics.append(topic)
-
     if not emotions:
         emotions.append("general")
 
-    return words, emotions, topics, intensity, distress, gratitude, len(words)
+    return words, emotions, intensity, distress, gratitude, len(words)
+
+# --------------------------------------------------------
+# DATASET MATCHING FUNCTION
+# --------------------------------------------------------
+def get_dataset_response(user_text):
+    if df is None:
+        return None
+
+    text_lower = user_text.lower()
+
+    # Random sample of dataset to improve performance
+    sample_df = df.sample(min(100, len(df)))
+
+    for _, row in sample_df.iterrows():
+        if row["emotion"] in text_lower:
+            return row["response"]
+
+    return None
 
 # --------------------------------------------------------
 # RESPONSE GENERATOR
 # --------------------------------------------------------
 def generate_response(user_text, first_chat):
+
     text_lower = user_text.lower()
 
     # FIRST CHAT GREETING
     if first_chat and any(greet in text_lower for greet in GREETINGS):
         return (
             "Hello! 👋 Welcome.\n\n"
-            "I’m here to support your well-being. You can talk to me about stress, "
-            "school pressure, emotions, relationships, or anything on your mind.\n\n"
+            "I’m here to support your well-being. "
             "How can I help you today?"
         )
 
-    words, emotions, topics, intense, distress, gratitude, length = analyze_message(user_text)
+    words, emotions, intense, distress, gratitude, length = analyze_message(user_text)
 
     # GRATITUDE RESPONSE
     if gratitude:
         return random.choice([
             "You’re very welcome 💙 I’m really glad I could help.",
             "I’m happy to know the advice helped you.",
-            "That means a lot. I’m always here if you need support again.",
-            "I’m glad you’re feeling better. Take care of yourself.",
-            "No need to thank me — I’m here whenever you need."
-        ]) + "\n\nFeel free to come back anytime."
+            "I’m always here if you need support again."
+        ])
 
+    # ----------------------------------------------------
+    # 1️⃣ DATASET LAYER (PRIMARY)
+    # ----------------------------------------------------
+    dataset_reply = get_dataset_response(user_text)
+    if dataset_reply:
+        return dataset_reply
+
+    # ----------------------------------------------------
+    # 2️⃣ RULE-BASED FALLBACK
+    # ----------------------------------------------------
     reflection = " ".join(words[:10]) + "..." if length > 10 else user_text
 
     response = (
         f"Thank you for sharing this.\n\n"
-        f"From what you said about **“{reflection}”**, "
-        f"it sounds like this is important to you.\n\n"
+        f"From what you said about “{reflection}”, "
+        f"it sounds important.\n\n"
     )
 
-    # Emotional empathy
-    if "general" in emotions:
-        response += "Even if it’s hard to explain, your feelings still matter.\n\n"
     if "sadness" in emotions:
-        response += "Feeling sad like this can be really heavy.\n\n"
-    if "stress" in emotions:
-        response += "That kind of pressure can build up over time.\n\n"
-    if "anxiety" in emotions:
-        response += "It sounds like your thoughts may be racing.\n\n"
-    if "anger" in emotions:
-        response += "Frustration like this can be exhausting.\n\n"
-    if "self_doubt" in emotions:
-        response += "You might be judging yourself more harshly than you deserve.\n\n"
+        response += "Sadness can feel heavy, and it's okay to feel this way.\n\n"
 
-    # Topic-based guidance
-    if "academics" in topics:
-        response += (
-            "Academic stress is very common. Breaking tasks into smaller steps "
-            "can make things feel more manageable.\n\n"
-        )
+    if "stress" in emotions:
+        response += "Stress builds gradually. Small structured steps may help.\n\n"
+
+    if "anxiety" in emotions:
+        response += "Anxiety can make thoughts race. Try slow breathing.\n\n"
 
     if intense:
-        response += (
-            "These feelings sound strong right now. Let’s take things one step at a time.\n\n"
-        )
+        response += "These feelings seem strong right now. Let’s slow things down.\n\n"
 
     if distress:
         response += (
-            "I’m really glad you reached out. You don’t have to go through this alone.\n\n"
+            "I’m really glad you reached out. "
+            "If you feel unsafe, please contact a trusted person or professional.\n\n"
         )
 
-    if length < 4:
-        response += "If you want, you can tell me a bit more.\n\n"
-
     response += random.choice([
-        "What feels hardest for you right now?",
-        "Do you want to share more about what led to this?",
-        "I’m here — you can keep talking.",
-        "What do you feel you need most at this moment?"
+        "What feels hardest right now?",
+        "Would you like to share more?",
+        "I’m here and listening.",
+        "What do you need most at this moment?"
     ])
 
     return response
@@ -177,32 +184,6 @@ if "first_chat" not in st.session_state:
 # --------------------------------------------------------
 st.title("💙 Campus Wellness Support Chatbot")
 
-# USER GUIDE / SYSTEM STATEMENT
-with st.expander("ℹ️ How this chatbot can help you"):
-    st.markdown("""
-    **Welcome!**  
-    This chatbot is designed to provide emotional support and wellness guidance
-    for students in a safe and respectful way.
-
-    **You can use this chatbot to:**
-    - Share your feelings, stress, or concerns
-    - Talk about school pressure, relationships, or personal struggles
-    - Receive supportive, non-judgmental responses
-    - Continue chatting until you feel satisfied or understood
-
-    **How it works:**
-    - The chatbot reads and analyzes your messages
-    - It responds with empathy and practical wellness guidance
-    - It adapts based on what you share
-
-    **Important reminder:**
-    - This chatbot does not provide medical diagnosis or emergency services
-    - If you are in immediate danger or crisis, please seek professional help
-
-    *You are always welcome here.*
-    """)
-
-# DISPLAY CHAT HISTORY
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -211,23 +192,17 @@ for msg in st.session_state.messages:
 # CHAT INPUT
 # --------------------------------------------------------
 if user_input := st.chat_input("Share what’s on your mind…"):
-    st.session_state.messages.append(
-        {"role": "user", "content": user_input}
-    )
+
+    st.session_state.messages.append({"role": "user", "content": user_input})
 
     with st.chat_message("user"):
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        response = generate_response(
-            user_input,
-            st.session_state.first_chat
-        )
+        response = generate_response(user_input, st.session_state.first_chat)
         st.markdown(response)
 
-    st.session_state.messages.append(
-        {"role": "assistant", "content": response}
-    )
+    st.session_state.messages.append({"role": "assistant", "content": response})
 
     st.session_state.first_chat = False
 
