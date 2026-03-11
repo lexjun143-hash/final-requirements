@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import random
 import snowflake.connector
-from snowflake.snowpark.context import get_active_session
 
 # --------------------------------------------------------
 # PAGE CONFIG
@@ -21,7 +20,15 @@ st.caption("A supportive space for students to talk about emotions, stress, and 
 # CONNECT TO SNOWFLAKE
 # --------------------------------------------------------
 
-session = get_active_session()
+conn = snowflake.connector.connect(
+    account=st.secrets["snowflake"]["account"],
+    user=st.secrets["snowflake"]["user"],
+    password=st.secrets["snowflake"]["password"],
+    warehouse=st.secrets["snowflake"]["warehouse"],
+    database=st.secrets["snowflake"]["database"],
+    schema=st.secrets["snowflake"]["schema"],
+    role=st.secrets["snowflake"]["role"]
+)
 
 # --------------------------------------------------------
 # LOAD DATASET FROM SNOWFLAKE
@@ -35,11 +42,12 @@ def load_dataset():
     FROM CHATBOT.PUBLIC.DATASET
     """
 
-    df = session.sql(query).to_pandas()
+    df = pd.read_sql(query, conn)
 
     # convert to lowercase for matching
     df["EMOTION"] = df["EMOTION"].str.lower()
     df["TOPIC"] = df["TOPIC"].str.lower()
+    df["KEYWORD"] = df["KEYWORD"].str.lower()
 
     return df
 
@@ -76,7 +84,7 @@ user_input = st.chat_input("How are you feeling today?")
 
 if user_input:
 
-    # show user message
+    # Display user message
     st.session_state.messages.append({
         "role": "user",
         "content": user_input
@@ -88,16 +96,17 @@ if user_input:
     user_text = user_input.lower()
 
     # --------------------------------------------------------
-    # FIND MATCHING DATASET ROWS
+    # FIND MATCHING RESPONSES
     # --------------------------------------------------------
 
     matched_rows = dataset[
         dataset["EMOTION"].apply(lambda x: x in user_text) |
-        dataset["TOPIC"].apply(lambda x: x in user_text)
+        dataset["TOPIC"].apply(lambda x: x in user_text) |
+        dataset["KEYWORD"].apply(lambda x: x in user_text)
     ]
 
     # --------------------------------------------------------
-    # SELECT RESPONSE
+    # SELECT BOT RESPONSE
     # --------------------------------------------------------
 
     if not matched_rows.empty:
@@ -136,6 +145,7 @@ The responses are dynamically retrieved from a dataset stored in Snowflake.
 
     st.write("✔ Emotion-based responses")
     st.write("✔ Topic-based support")
+    st.write("✔ Keyword detection")
     st.write("✔ Dataset-driven chatbot")
     st.write("✔ Randomized response selection")
 
