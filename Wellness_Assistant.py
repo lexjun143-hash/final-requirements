@@ -1,215 +1,144 @@
 import streamlit as st
-import random
-import re
 import pandas as pd
+import random
+import snowflake.connector
+from snowflake.snowpark.context import get_active_session
 
 # --------------------------------------------------------
 # PAGE CONFIG
 # --------------------------------------------------------
+
 st.set_page_config(
     page_title="Campus Wellness Support Chatbot",
     page_icon="💙",
     layout="centered"
 )
 
+st.title("💙 Campus Wellness Support Chatbot")
+st.caption("A supportive space for students to talk about emotions, stress, and personal challenges.")
+
 # --------------------------------------------------------
-# LOAD CSV DATASET
+# CONNECT TO SNOWFLAKE
 # --------------------------------------------------------
+
+session = get_active_session()
+
+# --------------------------------------------------------
+# LOAD DATASET FROM SNOWFLAKE
+# --------------------------------------------------------
+
 @st.cache_data
 def load_dataset():
-    try:
-        df = pd.read_csv("wellness_dataset_1000.csv")
-        return df
-    except:
-        return None
 
-df = load_dataset()
+    query = """
+    SELECT EMOTION, TOPIC, KEYWORD, RESPONSE
+    FROM CHATBOT.PUBLIC.DATASET
+    """
 
-# --------------------------------------------------------
-# GREETING & GRATITUDE KEYWORDS
-# --------------------------------------------------------
-GREETINGS = [
-    "hi", "hello", "hey",
-    "good morning", "good afternoon", "good evening"
-]
+    df = session.sql(query).to_pandas()
 
-GRATITUDE_KEYWORDS = [
-    "thank you", "thanks", "thank u",
-    "appreciate", "grateful", "that helped",
-    "i feel better", "much better now"
-]
+    # convert to lowercase for matching
+    df["EMOTION"] = df["EMOTION"].str.lower()
+    df["TOPIC"] = df["TOPIC"].str.lower()
+
+    return df
+
+
+dataset = load_dataset()
 
 # --------------------------------------------------------
-# KEYWORDS & ANALYSIS DATA
+# DEFAULT RESPONSES
 # --------------------------------------------------------
-EMOTIONS = {
-    "stress": ["stress", "pressure", "overwhelmed", "deadline", "burnout"],
-    "sadness": ["sad", "down", "lonely", "cry", "hopeless"],
-    "anxiety": ["anxious", "worried", "panic", "nervous"],
-    "anger": ["angry", "mad", "frustrated", "annoyed"],
-    "fatigue": ["tired", "exhausted", "drained"],
-    "self_doubt": ["not good enough", "failure", "useless"],
-    "numbness": ["numb", "empty", "emotionless"]
-}
 
-INTENSIFIERS = ["very", "too", "always", "never", "can't", "anymore", "really"]
-
-DISTRESS_PATTERNS = [
-    "i can't handle", "i give up",
-    "nothing helps", "i'm done",
-    "what's the point"
+default_responses = [
+    "I'm here to listen. Could you share more about what you're feeling?",
+    "It sounds like something is bothering you. I'm here with you.",
+    "Your feelings are valid. Tell me more about your situation.",
+    "Sometimes talking helps. What would you like to share today?"
 ]
 
 # --------------------------------------------------------
-# MESSAGE ANALYSIS
+# CHAT MEMORY
 # --------------------------------------------------------
-def analyze_message(text):
-    text_lower = text.lower()
-    words = re.findall(r"\b\w+\b", text_lower)
 
-    emotions = []
-
-    intensity = any(word in words for word in INTENSIFIERS)
-    distress = any(phrase in text_lower for phrase in DISTRESS_PATTERNS)
-    gratitude = any(g in text_lower for g in GRATITUDE_KEYWORDS)
-
-    for emo, keys in EMOTIONS.items():
-        if any(k in text_lower for k in keys):
-            emotions.append(emo)
-
-    if not emotions:
-        emotions.append("general")
-
-    return words, emotions, intensity, distress, gratitude, len(words)
-
-# --------------------------------------------------------
-# DATASET MATCHING FUNCTION
-# --------------------------------------------------------
-def get_dataset_response(user_text):
-    if df is None:
-        return None
-
-    text_lower = user_text.lower()
-
-    # Random sample of dataset to improve performance
-    sample_df = df.sample(min(100, len(df)))
-
-    for _, row in sample_df.iterrows():
-        if row["emotion"] in text_lower:
-            return row["response"]
-
-    return None
-
-# --------------------------------------------------------
-# RESPONSE GENERATOR
-# --------------------------------------------------------
-def generate_response(user_text, first_chat):
-
-    text_lower = user_text.lower()
-
-    # FIRST CHAT GREETING
-    if first_chat and any(greet in text_lower for greet in GREETINGS):
-        return (
-            "Hello! 👋 Welcome.\n\n"
-            "I’m here to support your well-being. "
-            "How can I help you today?"
-        )
-
-    words, emotions, intense, distress, gratitude, length = analyze_message(user_text)
-
-    # GRATITUDE RESPONSE
-    if gratitude:
-        return random.choice([
-            "You’re very welcome 💙 I’m really glad I could help.",
-            "I’m happy to know the advice helped you.",
-            "I’m always here if you need support again."
-        ])
-
-    # ----------------------------------------------------
-    # 1️⃣ DATASET LAYER (PRIMARY)
-    # ----------------------------------------------------
-    dataset_reply = get_dataset_response(user_text)
-    if dataset_reply:
-        return dataset_reply
-
-    # ----------------------------------------------------
-    # 2️⃣ RULE-BASED FALLBACK
-    # ----------------------------------------------------
-    reflection = " ".join(words[:10]) + "..." if length > 10 else user_text
-
-    response = (
-        f"Thank you for sharing this.\n\n"
-        f"From what you said about “{reflection}”, "
-        f"it sounds important.\n\n"
-    )
-
-    if "sadness" in emotions:
-        response += "Sadness can feel heavy, and it's okay to feel this way.\n\n"
-
-    if "stress" in emotions:
-        response += "Stress builds gradually. Small structured steps may help.\n\n"
-
-    if "anxiety" in emotions:
-        response += "Anxiety can make thoughts race. Try slow breathing.\n\n"
-
-    if intense:
-        response += "These feelings seem strong right now. Let’s slow things down.\n\n"
-
-    if distress:
-        response += (
-            "I’m really glad you reached out. "
-            "If you feel unsafe, please contact a trusted person or professional.\n\n"
-        )
-
-    response += random.choice([
-        "What feels hardest right now?",
-        "Would you like to share more?",
-        "I’m here and listening.",
-        "What do you need most at this moment?"
-    ])
-
-    return response
-
-# --------------------------------------------------------
-# SESSION STATE
-# --------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "first_chat" not in st.session_state:
-    st.session_state.first_chat = True
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
 
 # --------------------------------------------------------
-# UI
+# USER INPUT
 # --------------------------------------------------------
-st.title("💙 Campus Wellness Support Chatbot")
 
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+user_input = st.chat_input("How are you feeling today?")
 
-# --------------------------------------------------------
-# CHAT INPUT
-# --------------------------------------------------------
-if user_input := st.chat_input("Share what’s on your mind…"):
+if user_input:
 
-    st.session_state.messages.append({"role": "user", "content": user_input})
+    # show user message
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input
+    })
 
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.write(user_input)
+
+    user_text = user_input.lower()
+
+    # --------------------------------------------------------
+    # FIND MATCHING DATASET ROWS
+    # --------------------------------------------------------
+
+    matched_rows = dataset[
+        dataset["EMOTION"].apply(lambda x: x in user_text) |
+        dataset["TOPIC"].apply(lambda x: x in user_text)
+    ]
+
+    # --------------------------------------------------------
+    # SELECT RESPONSE
+    # --------------------------------------------------------
+
+    if not matched_rows.empty:
+        bot_response = random.choice(matched_rows["RESPONSE"].tolist())
+    else:
+        bot_response = random.choice(default_responses)
+
+    # --------------------------------------------------------
+    # DISPLAY BOT RESPONSE
+    # --------------------------------------------------------
+
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": bot_response
+    })
 
     with st.chat_message("assistant"):
-        response = generate_response(user_input, st.session_state.first_chat)
-        st.markdown(response)
-
-    st.session_state.messages.append({"role": "assistant", "content": response})
-
-    st.session_state.first_chat = False
+        st.write(bot_response)
 
 # --------------------------------------------------------
-# RESET BUTTON
+# SIDEBAR
 # --------------------------------------------------------
-if st.button("🔄 Reset Chat"):
-    st.session_state.messages = []
-    st.session_state.first_chat = True
-    st.success("Chat cleared. You can start again.")
+
+with st.sidebar:
+
+    st.header("About the System")
+
+    st.write("""
+This chatbot provides wellness support for students by analyzing
+emotions and topics mentioned in user messages.
+
+The responses are dynamically retrieved from a dataset stored in Snowflake.
+""")
+
+    st.subheader("System Features")
+
+    st.write("✔ Emotion-based responses")
+    st.write("✔ Topic-based support")
+    st.write("✔ Dataset-driven chatbot")
+    st.write("✔ Randomized response selection")
+
+    st.divider()
+
+    st.caption("Developed for academic research and student wellness.")
