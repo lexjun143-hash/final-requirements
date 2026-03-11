@@ -20,15 +20,23 @@ st.caption("A supportive space for students to talk about emotions, stress, and 
 # CONNECT TO SNOWFLAKE
 # --------------------------------------------------------
 
-conn = snowflake.connector.connect(
-    account=st.secrets["snowflake"]["account"],
-    user=st.secrets["snowflake"]["user"],
-    password=st.secrets["snowflake"]["password"],
-    warehouse=st.secrets["snowflake"]["warehouse"],
-    database=st.secrets["snowflake"]["database"],
-    schema=st.secrets["snowflake"]["schema"],
-    role=st.secrets["snowflake"]["role"]
-)
+@st.cache_resource
+def get_connection():
+
+    conn = snowflake.connector.connect(
+        account=st.secrets["snowflake"]["account"],
+        user=st.secrets["snowflake"]["user"],
+        password=st.secrets["snowflake"]["password"],
+        warehouse=st.secrets["snowflake"]["warehouse"],
+        database=st.secrets["snowflake"]["database"],
+        schema=st.secrets["snowflake"]["schema"],
+        role=st.secrets["snowflake"]["role"]
+    )
+
+    return conn
+
+
+conn = get_connection()
 
 # --------------------------------------------------------
 # LOAD DATASET FROM SNOWFLAKE
@@ -42,9 +50,11 @@ def load_dataset():
     FROM CHATBOT.PUBLIC.DATASET
     """
 
-    df = pd.read_sql(query, conn)
+    cursor = conn.cursor()
 
-    # convert to lowercase for matching
+    df = cursor.execute(query).fetch_pandas_all()
+
+    # Convert to lowercase for matching
     df["EMOTION"] = df["EMOTION"].str.lower()
     df["TOPIC"] = df["TOPIC"].str.lower()
     df["KEYWORD"] = df["KEYWORD"].str.lower()
@@ -84,7 +94,6 @@ user_input = st.chat_input("How are you feeling today?")
 
 if user_input:
 
-    # Display user message
     st.session_state.messages.append({
         "role": "user",
         "content": user_input
